@@ -1,40 +1,34 @@
-import PickerModal from '@/components/PickerModal';
+import { useNumberPickerStore } from "@/stores/numberPickerStore";
 import { FontAwesome } from '@expo/vector-icons';
-import { PickerItemProps } from '@react-native-picker/picker';
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   ImageBackground,
-  Pressable,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "react-native-gesture-handler";
 
 const backgroundImage = require("@/assets/images/mymy-background.png");
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const goldenTop = screenHeight * 0.2;
+
 export default function Index() {
-  const screenHeight = Dimensions.get("window").height;
-  const screenWidth = Dimensions.get("window").width;
-  const goldenTop = screenHeight * 0.2;
   const [countDown, setCountDown] = useState<number | null>(null);
-  const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false);
-  const items: PickerItemProps[] = useMemo(() => Array.from({ length: 46 }, (_, i) => ({
-    label: (i + 15).toString(),
-    value: i + 15,
-    color: "white",
-    style: {
-      fontSize: 24,
-    }
-  })), []);
   const timerRef = useRef<number | null>(null);
+  const { selectedValue, openPicker } = useNumberPickerStore();
+
+  useEffect(() => {
+    if (selectedValue > 0) {
+      setCountDown(selectedValue * 60);
+    }
+  }, [selectedValue]);
 
   useEffect(() => {
     if (countDown === null) return;
-    if (isDateTimePickerOpen && timerRef.current !== null) {
-      clearInterval(timerRef.current);
-      return;
-    }
     timerRef.current = setInterval(() => {
       if (countDown > 0) {
         setCountDown(prev => prev !== null ? prev - 1 : null);
@@ -44,7 +38,7 @@ export default function Index() {
     }, 1000);
 
     return () => clearInterval(timerRef.current!);
-  }, [countDown, isDateTimePickerOpen]);
+  }, [countDown]);
 
   const formatTime = useCallback((time: number | null) => {
     if (time === null) return "00:00";
@@ -53,13 +47,18 @@ export default function Index() {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }, []);
 
+  const handleOpenNumberPicker = () => {
+    openPicker();
+    router.push("/number-picker");
+  };
+
   return (
     <ImageBackground
       source={backgroundImage}
       style={styles.background}
       resizeMode="cover"
     >
-      {countDown && <View style={[styles.timerContainer, { marginTop: goldenTop }]}>
+      {countDown && <View style={styles.timerContainer}>
         <Text style={styles.timerText}>
           {formatTime(countDown)}
         </Text>
@@ -70,17 +69,10 @@ export default function Index() {
           { right: screenWidth * 0.1, bottom: screenHeight * 0.05 },
         ]}
       >
-        <Pressable onPress={() => setIsDateTimePickerOpen(true)}>
+        <Pressable onPress={handleOpenNumberPicker}>
           <FontAwesome name="clock-o" size={40} color="black" />
         </Pressable>
       </View>
-      <PickerModal
-        isOpen={isDateTimePickerOpen}
-        setIsOpen={setIsDateTimePickerOpen}
-        initialValue={items[0].value}
-        items={items}
-        onValuePicked={(value) => { if (value !== undefined) setCountDown(value as number * 60); }}
-      />
     </ImageBackground>
   );
 }
@@ -94,10 +86,11 @@ const styles = StyleSheet.create({
   timerContainer: {
     flex: 1,
     alignItems: "center",
+    marginTop: goldenTop,
   },
   timerText: {
     fontSize: 64,
-    fontFamily: "LXGWWenKaiMonoTC-Bold",
+    fontFamily: "LXGWWenKaiMonoTC-Regular",
     letterSpacing: 15,
     minWidth: 200,
     textShadowColor: "black",
