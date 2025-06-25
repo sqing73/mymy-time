@@ -1,4 +1,5 @@
 import { useNumberPickerStore } from "@/stores/numberPickerStore";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -50,7 +51,7 @@ const Ruler = ({ items }: { items: number[] }) => {
 };
 
 export default function NumberPickerScreen() {
-  const { setSelectedValue, closePicker } = useNumberPickerStore();
+  const { setSelectedValue } = useNumberPickerStore();
   const items = Array.from({ length: 106 }, (_, i) => i + 15); // 15 ~ 120
 
   const [indicatorX, setIndicatorX] = useState(15);
@@ -100,7 +101,6 @@ export default function NumberPickerScreen() {
   const handleDoneClicked = (e: PressableEvent) => {
     setSelectedValue(indicatorX);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    closePicker();
     router.back();
   };
 
@@ -112,8 +112,15 @@ export default function NumberPickerScreen() {
     scale.value = withTiming(1, { duration: 100 });
   };
 
+  const handleClose = () => {
+    router.back();
+  };
+
   return (
     <SafeAreaView style={styles.containerView}>
+      <Pressable onPress={handleClose} style={styles.closeButton}>
+        <Feather name="arrow-left" size={40} color="black" />
+      </Pressable>
       <Pressable onPress={handleDoneClicked} onPressIn={handlePressIn} onPressOut={handlePressOut}>
         <Animated.Image
           source={require("@/assets/images/mymy-tree.png")}
@@ -155,11 +162,9 @@ const styles = StyleSheet.create({
     marginTop: 200,
   },
   closeButton: {
-    position: "absolute",
-    bottom: "30%",
-    left: "50%",
-    transform: [{ translateX: -50 }],
-    zIndex: 1000,
+    alignSelf: "flex-start",
+    left: 20,
+    top: 20,
   },
   ruler: {
     alignItems: "flex-end",
@@ -188,10 +193,4 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontFamily: "LXGWWenKaiMonoTC-Bold",
   },
-  closeButtonText: {
-    fontFamily: "LXGWWenKaiMonoTC-Bold",
-    textShadowColor: "black",
-    textShadowOffset: { width: 0.5, height: 0.5 },
-    textShadowRadius: 0.7,
-  }
 }); 

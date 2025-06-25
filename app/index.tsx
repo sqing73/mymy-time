@@ -17,7 +17,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const goldenTop = screenHeight * 0.2;
 
 export default function Index() {
-  const { selectedValue, openPicker } = useNumberPickerStore();
+  const { selectedValue } = useNumberPickerStore();
   const [countDown, setCountDown] = useState<number>(selectedValue * 60);
   const timerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -36,7 +36,6 @@ export default function Index() {
   }, []);
 
   const handleOpenNumberPicker = () => {
-    openPicker();
     router.push("/number-picker");
   };
 
