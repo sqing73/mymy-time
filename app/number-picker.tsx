@@ -1,38 +1,43 @@
-import Button from "@/components/Button";
 import { useNumberPickerStore } from "@/stores/numberPickerStore";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dimensions, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Pressable } from "react-native-gesture-handler";
+import { PressableEvent } from "react-native-gesture-handler/lib/typescript/components/Pressable/PressableProps";
 import Animated, {
   runOnJS,
-  useAnimatedScrollHandler
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming
 } from "react-native-reanimated";
 
 const { width } = Dimensions.get("screen");
 
-const segmentWidth = 2;
-const segmentSpacing = 20;
+const segmentWidth = 8;
+const segmentSpacing = 10;
 const snapSegment = segmentWidth + segmentSpacing;
 const spacerWidth = (width - segmentWidth) / 2;
-const indicatorWidth = 130;
+const indicatorWidth = 140;
 const indicatorHeight = 80;
 
-const Ruler = <T extends { toString: () => string }>({ items }: { items: T[] }) => {
+const Ruler = ({ items }: { items: number[] }) => {
   const rulerWidth = spacerWidth * 2 + items.length * segmentWidth + (items.length - 1) * segmentSpacing;
   return (
     <View style={[styles.ruler, { width: rulerWidth }]}>
       <View style={{ width: spacerWidth }} />
-      {items.map((value, index) => {
-        const isTenth = typeof value === "number" && !isNaN(value) && value % 10 === 0;
+      {items.map((value: number, index: number) => {
+        const isFifth = value % 5 === 0;
         return (
           <View
             key={index}
             style={[
               styles.segment,
               {
-                backgroundColor: "#999",
-                height: isTenth ? 40 : 20,
+                backgroundColor: "black",
+                height: isFifth ? 40 : 20,
                 marginRight: index === items.length - 1 ? 0 : segmentSpacing,
               }
             ]}
@@ -45,17 +50,42 @@ const Ruler = <T extends { toString: () => string }>({ items }: { items: T[] }) 
 };
 
 export default function NumberPickerScreen() {
-  const { selectedValue, setSelectedValue, closePicker } = useNumberPickerStore();
-  const items = Array.from({ length: 76 }, (_, i) => i + 15);
+  const { setSelectedValue, closePicker } = useNumberPickerStore();
+  const items = Array.from({ length: 106 }, (_, i) => i + 15); // 15 ~ 120
 
-  const [indicatorX, setIndicatorX] = useState(selectedValue);
+  const [indicatorX, setIndicatorX] = useState(15);
   const [lastHapticIndex, setLastHapticIndex] = useState(-1);
+  const rotation = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    // Start the shake sequence with a 500ms delay
+    rotation.value = withDelay(500, withTiming(10, { duration: 100 }, () => {
+      rotation.value = withTiming(-10, { duration: 100 }, () => {
+        rotation.value = withTiming(8, { duration: 100 }, () => {
+          rotation.value = withTiming(-8, { duration: 100 }, () => {
+            rotation.value = withTiming(5, { duration: 100 }, () => {
+              rotation.value = withTiming(-5, { duration: 100 }, () => {
+                rotation.value = withTiming(0, { duration: 200 });
+              });
+            });
+          });
+        });
+      });
+    }));
+  }, [rotation]);
+
+  const animatedImageStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotate: `${rotation.value}deg` }, { scale: scale.value }],
+    };
+  });
 
   const handleIndicatorX = (idx: number) => {
     setIndicatorX(idx);
     if (idx !== lastHapticIndex) {
       setLastHapticIndex(idx);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid);
     }
   };
 
@@ -67,22 +97,30 @@ export default function NumberPickerScreen() {
     runOnJS(handleIndicatorX)(boundedValue);
   });
 
-  const handleStart = () => {
+  const handleDoneClicked = (e: PressableEvent) => {
     setSelectedValue(indicatorX);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     closePicker();
     router.back();
   };
 
+  const handlePressIn = () => {
+    scale.value = withTiming(0.8, { duration: 100 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withTiming(1, { duration: 100 });
+  };
+
   return (
     <SafeAreaView style={styles.containerView}>
-      <Button
-        onPress={handleStart}
-        style={styles.closeButton}
-      >
-        <Text>
-          Start
-        </Text>
-      </Button>
+      <Pressable onPress={handleDoneClicked} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+        <Animated.Image
+          source={require("@/assets/images/mymy-tree.png")}
+          style={[styles.image, animatedImageStyle]}
+        />
+      </Pressable>
+
       <Animated.ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -94,9 +132,9 @@ export default function NumberPickerScreen() {
       </Animated.ScrollView>
       <View style={styles.indicatorWrapper} >
         <Text
-          style={[styles.indictorText, { fontFamily: "LXGWWenKaiMonoTC-Bold" }]}
+          style={styles.indictorText}
         >
-          {indicatorX.toString() + " min"}
+          {indicatorX.toString()}
         </Text>
         <View style={[styles.segment, styles.segmentIndicator]} />
       </View>
@@ -109,7 +147,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    backgroundColor: "rgb(221, 183, 116)",
+  },
+  image: {
+    width: 150,
+    height: 250,
+    marginTop: 200,
   },
   closeButton: {
     position: "absolute",
@@ -124,7 +167,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   segment: {
-    width: segmentWidth
+    width: segmentWidth,
+    borderRadius: 10,
   },
   indicatorWrapper: {
     position: "absolute",
@@ -137,11 +181,17 @@ const styles = StyleSheet.create({
   },
   segmentIndicator: {
     height: indicatorHeight,
-    backgroundColor: "white",
+    backgroundColor: "black",
   },
   indictorText: {
     fontSize: 40,
     marginBottom: 10,
-    color: "#999",
+    fontFamily: "LXGWWenKaiMonoTC-Bold",
+  },
+  closeButtonText: {
+    fontFamily: "LXGWWenKaiMonoTC-Bold",
+    textShadowColor: "black",
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 0.7,
   }
 }); 

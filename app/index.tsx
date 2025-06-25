@@ -1,5 +1,5 @@
 import { useNumberPickerStore } from "@/stores/numberPickerStore";
-import { FontAwesome } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -17,28 +17,16 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const goldenTop = screenHeight * 0.2;
 
 export default function Index() {
-  const [countDown, setCountDown] = useState<number | null>(null);
-  const timerRef = useRef<number | null>(null);
   const { selectedValue, openPicker } = useNumberPickerStore();
+  const [countDown, setCountDown] = useState<number>(selectedValue * 60);
+  const timerRef = useRef<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (selectedValue > 0) {
       setCountDown(selectedValue * 60);
     }
   }, [selectedValue]);
-
-  useEffect(() => {
-    if (countDown === null) return;
-    timerRef.current = setInterval(() => {
-      if (countDown > 0) {
-        setCountDown(prev => prev !== null ? prev - 1 : null);
-      } else if (countDown === 0) {
-        setCountDown(null);
-      }
-    }, 1000);
-
-    return () => clearInterval(timerRef.current!);
-  }, [countDown]);
 
   const formatTime = useCallback((time: number | null) => {
     if (time === null) return "00:00";
@@ -52,25 +40,46 @@ export default function Index() {
     router.push("/number-picker");
   };
 
+  const handlePlay = () => {
+    if (isPlaying) {
+      clearInterval(timerRef.current!);
+      setIsPlaying(false);
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      if (countDown > 0) {
+        setCountDown(prev => prev - 1);
+      } else if (countDown === 0) {
+        setCountDown(0);
+      }
+    }, 1000);
+    setIsPlaying(true);
+  };
+
   return (
     <ImageBackground
       source={backgroundImage}
       style={styles.background}
       resizeMode="cover"
     >
-      {countDown && <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>
-          {formatTime(countDown)}
-        </Text>
-      </View>}
+      <View style={styles.timerContainer}>
+        <Pressable onPress={handleOpenNumberPicker}>
+          <Text style={styles.timerText}>
+            {formatTime(countDown)}
+          </Text>
+        </Pressable>
+      </View>
       <View
         style={[
           styles.clockButtonContainer,
           { right: screenWidth * 0.1, bottom: screenHeight * 0.05 },
         ]}
       >
-        <Pressable onPress={handleOpenNumberPicker}>
-          <FontAwesome name="clock-o" size={40} color="black" />
+        <Pressable onPress={handlePlay}>
+          {isPlaying ?
+            <Feather name="stop-circle" size={60} color="black" /> :
+            <Feather name="play-circle" size={60} color="black" />}
         </Pressable>
       </View>
     </ImageBackground>
