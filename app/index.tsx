@@ -1,26 +1,30 @@
 import { useNumberPickerStore } from "@/stores/numberPickerStore";
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   ImageBackground,
   StyleSheet,
   Text,
   View
 } from "react-native";
 import { Pressable } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from "react-native-reanimated";
+
+const AnimatedFeather = Animated.createAnimatedComponent(Feather);
 
 const backgroundImage = require("@/assets/images/mymy-background.png");
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const goldenTop = screenHeight * 0.2;
 
 export default function Index() {
   const { selectedValue } = useNumberPickerStore();
   const [countDown, setCountDown] = useState<number>(selectedValue * 60);
   const timerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const buttonScale = useSharedValue(1);
+  const buttonOpacity = useDerivedValue(() => {
+    return 1.0 - ((buttonScale.value - 1) / (1.2 - 1)) * 0.4;
+  });
 
   useEffect(() => {
     if (selectedValue > 0) {
@@ -40,6 +44,7 @@ export default function Index() {
   };
 
   const handlePlay = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     if (isPlaying) {
       clearInterval(timerRef.current!);
       setIsPlaying(false);
@@ -56,6 +61,20 @@ export default function Index() {
     setIsPlaying(true);
   };
 
+  const handlePressIn = () => {
+    buttonScale.value = withTiming(1.2, { duration: 100 });
+  };
+  const handlePressOut = () => {
+    buttonScale.value = withTiming(1, { duration: 100 });
+  };
+
+  const animatedButtonStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: buttonScale.value }],
+      opacity: buttonOpacity.value,
+    };
+  });
+
   return (
     <ImageBackground
       source={backgroundImage}
@@ -69,16 +88,12 @@ export default function Index() {
           </Text>
         </Pressable>
       </View>
-      <View
-        style={[
-          styles.clockButtonContainer,
-          { right: screenWidth * 0.1, bottom: screenHeight * 0.05 },
-        ]}
-      >
-        <Pressable onPress={handlePlay}>
+      <View style={styles.clockButtonContainer}>
+        <Pressable onPress={handlePlay} onPressIn={handlePressIn} onPressOut={handlePressOut} onLongPress={handlePlay}>
           {isPlaying ?
-            <Feather name="stop-circle" size={60} color="black" /> :
-            <Feather name="play-circle" size={60} color="black" />}
+            <AnimatedFeather name="stop-circle" size={60} color="black" style={animatedButtonStyle} /> :
+            <AnimatedFeather name="play-circle" size={60} color="black" style={animatedButtonStyle} />
+          }
         </Pressable>
       </View>
     </ImageBackground>
@@ -94,7 +109,7 @@ const styles = StyleSheet.create({
   timerContainer: {
     flex: 1,
     alignItems: "center",
-    marginTop: goldenTop,
+    top: "15%",
   },
   timerText: {
     fontSize: 64,
@@ -106,6 +121,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 0.7,
   },
   clockButtonContainer: {
-    position: "absolute",
+    bottom: "20%",
   },
 });
