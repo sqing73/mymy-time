@@ -1,9 +1,7 @@
 import express, { Express, Request, Response, NextFunction } from "express";
-import path from "path";
 import cookieParser from "cookie-parser";
 import logger from "morgan";
 
-import indexRouter from "./routes/index.router";
 import aiRouter from "./routes/ai.router";
 
 const app: Express = express();
@@ -13,7 +11,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-app.use("/", indexRouter);
 app.use("/ai", aiRouter);
 
 // Error handler
