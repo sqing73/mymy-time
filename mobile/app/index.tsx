@@ -12,8 +12,6 @@ import {
 import { Pressable } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from "react-native-reanimated";
 
-const AnimatedFeather = Animated.createAnimatedComponent(Feather);
-
 const backgroundImage = require("@/assets/images/mymy-background.png");
 
 export default function Index() {
@@ -88,14 +86,14 @@ export default function Index() {
           </Text>
         </Pressable>
       </View>
-      <View style={styles.clockButtonContainer}>
+      <Animated.View style={[styles.clockButtonContainer, animatedButtonStyle]}>
         <Pressable onPress={handlePlay} onPressIn={handlePressIn} onPressOut={handlePressOut} onLongPress={handlePlay}>
           {isPlaying ?
-            <AnimatedFeather name="stop-circle" size={60} color="black" style={animatedButtonStyle} /> :
-            <AnimatedFeather name="play-circle" size={60} color="black" style={animatedButtonStyle} />
+            <Feather name="stop-circle" size={60} color="black" /> :
+            <Feather name="play-circle" size={60} color="black" />
           }
         </Pressable>
-      </View>
+      </Animated.View>
     </ImageBackground>
   );
 }
