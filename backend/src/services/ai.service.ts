@@ -7,7 +7,14 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const TaskTimeExtraction = z.object({
   task: z.string(),
   time: z.number(),
+  image: z.string(),
 });
+
+interface TaskTimeExtractionType {
+  task?: string;
+  time?: number;
+  image?: string;
+}
 
 const Images = [
   "reading-books",
@@ -24,13 +31,34 @@ const Images = [
   "taking-a-shower",
 ];
 
-export async function getTaskExtraction(prompt: string): Promise<string> {
-  const response = await openai.responses.create({
+export async function getTaskExtraction(prompt: string): Promise<TaskTimeExtractionType | null> {
+  const response = await openai.responses.parse({
     model: "gpt-4.1-mini",
     input: [
       {
         role: "system",
-        content: "You are an expert at structured data extraction. You will be given unstructured text and you will need to extract the task and the time it will take to complete the task. The time should be in minutes."
+        content: `
+        # Identity
+        You are an expert at structured data extraction and image selection. You will be given unstructured text and you will need to extract the task and the time it will take to complete the task. The time should be in minutes. You will also need to select an image that best represents the task.
+
+        # Instructions
+        - Extract the task and the time it will take to complete the task.
+        - The time should be in minutes.
+        - Select an image that best represents the task.
+        - The image must be one of the following: ${Images.join(", ")}.
+
+        # Example
+        <user_query>
+          reading books for 2 hours
+        </user_query>
+        <task_extraction>
+          {
+            "task": "reading books",
+            "time": 120,
+            "image": "reading-books"
+          }
+        </task_extraction>
+        `
       },
       {
         role: "user",
@@ -39,7 +67,17 @@ export async function getTaskExtraction(prompt: string): Promise<string> {
     ],
     text: { format: zodTextFormat(TaskTimeExtraction, "TaskTimeExtraction") },
   });
-  return response.output_text || "";
+  const result: TaskTimeExtractionType = response.output_parsed || {};
+  const image = result.image || "";
+  const verifiedImage = Images.includes(image) ? image : "";
+  if (!result.task || !result.time || !verifiedImage) {
+    return null;
+  }
+  return {
+    task: result.task || "",
+    time: result.time || 0,
+    image: verifiedImage,
+  };
 }
 
 export async function getTaskImageMapping(prompt: string): Promise<string> {
@@ -58,7 +96,6 @@ export async function getTaskImageMapping(prompt: string): Promise<string> {
   });
   return Images.includes(response.output_text) ? response.output_text : "";
 }
-    
 
 export async function getTaskImage(prompt: string): Promise<string> {
   const response = await openai.responses.create({
@@ -73,12 +110,12 @@ export async function getTaskImage(prompt: string): Promise<string> {
         content: prompt
       }
     ],
-    tools: [{ 
+    tools: [{
       type: "image_generation",
       quality: "low",
       size: "1024x1536",
       output_format: "jpeg",
-     }],
+    }],
   });
   // TODO: remove saving to file after testing
   const imageData = response.output
