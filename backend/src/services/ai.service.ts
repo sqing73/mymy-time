@@ -19,7 +19,7 @@ interface TaskTimeExtractionType {
 const Images = [
   "reading-books",
   "watching-tv",
-  "playing-games",
+  "playing-video-games",
   "listening-to-music",
   "studying",
   "working-out",

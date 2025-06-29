@@ -4,15 +4,32 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ImageBackground,
+  Keyboard,
   StyleSheet,
   Text,
-  View
+  View,
+  TouchableWithoutFeedback
 } from "react-native";
-import { Pressable } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from "react-native-reanimated";
+import { Pressable, TextInput } from "react-native-gesture-handler";
+import Animated, {
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withTiming
+} from "react-native-reanimated";
+import { Image } from "expo-image";
 
-const backgroundImage = require("@/assets/images/mymy-background.png");
+enum taskEnum {
+  readingBooks = "reading-books",
+  watchingTV = "watching-tv",
+  playingVideoGames = "playing-video-games",
+};
+
+const backgroundImageNameMap = {
+  [taskEnum.readingBooks]: require("@/assets/images/reading-books.png"),
+  [taskEnum.watchingTV]: require("@/assets/images/watching-tv.png"),
+  [taskEnum.playingVideoGames]: require("@/assets/images/playing-video-games.png"),
+};
 
 export default function Index() {
   const { selectedValue } = useNumberPickerStore();
@@ -23,6 +40,9 @@ export default function Index() {
   const buttonOpacity = useDerivedValue(() => {
     return 1.0 - ((buttonScale.value - 1) / (1.2 - 1)) * 0.4;
   });
+  const [task, setTask] = useState<taskEnum>(taskEnum.playingVideoGames);
+  const [taskInput, setTaskInput] = useState<string>("");
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (selectedValue > 0) {
@@ -74,10 +94,10 @@ export default function Index() {
   });
 
   return (
-    <ImageBackground
-      source={backgroundImage}
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+
+    <View
       style={styles.background}
-      resizeMode="cover"
     >
       <View style={styles.timerContainer}>
         <Pressable onPress={handleOpenNumberPicker}>
@@ -86,7 +106,32 @@ export default function Index() {
           </Text>
         </Pressable>
       </View>
-      <Animated.View style={[styles.clockButtonContainer, animatedButtonStyle]}>
+
+      <View style={styles.taskInputContainer}>
+        <TextInput
+          placeholder={isFocused ? "" : "reading books for an hour..."}
+          value={taskInput}
+          onChangeText={(text) => setTaskInput(text)}
+          style={styles.taskInput}
+          placeholderTextColor="gray"
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+        />
+      </View>
+
+      <View style={styles.imageContainer}>
+        <Image
+          source={backgroundImageNameMap[task]}
+          style={[
+            styles.backgroundImage,
+          ]}
+          contentFit="contain"
+          placeholder={"loading..."}
+        />
+      </View>
+
+
+      <Animated.View style={animatedButtonStyle}>
         <Pressable onPress={handlePlay} onPressIn={handlePressIn} onPressOut={handlePressOut} onLongPress={handlePlay}>
           {isPlaying ?
             <Feather name="stop-circle" size={60} color="black" /> :
@@ -94,20 +139,23 @@ export default function Index() {
           }
         </Pressable>
       </Animated.View>
-    </ImageBackground>
+    </View>
+    </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgb(221, 183, 116)",
+    paddingTop: "30%",
+    paddingBottom: "20%",
   },
   timerContainer: {
     flex: 1,
     alignItems: "center",
-    top: "15%",
   },
   timerText: {
     fontSize: 64,
@@ -118,7 +166,23 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0.9, height: 0.9 },
     textShadowRadius: 0.7,
   },
-  clockButtonContainer: {
-    bottom: "20%",
+  imageContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: "3%",
+  },
+  backgroundImage: {
+    width: 300,
+    height: 450,
+  },
+  taskInputContainer: {
+    marginTop: "10%",
+  },
+  taskInput: {
+    width: "100%",
+    height: 20,
+    fontSize: 20,
+    fontFamily: "LXGWWenKaiMonoTC-Regular",
   },
 });
