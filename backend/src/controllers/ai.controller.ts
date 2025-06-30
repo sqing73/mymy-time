@@ -6,7 +6,7 @@ export async function handleTaskExtractionRequest(req: Request, res: Response, n
     const { prompt } = req.body;
     const completion = await getTaskExtraction(prompt);
     if (!completion) {
-      return res.status(400).json({ error: "Failed to extract task and time" });
+      return res.status(400).json({ error: "Prompt is not valid, please try again!" });
     }
     return res.json(completion);
   } catch (error) {

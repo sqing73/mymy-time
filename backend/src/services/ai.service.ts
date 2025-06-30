@@ -23,12 +23,12 @@ const Images = [
   "listening-to-music",
   "studying",
   "working-out",
-  "cleaning-up",
+  "doing-housework",
   "cooking",
   "eating",
   "sleeping",
-  "taking-a-bath",
   "taking-a-shower",
+  "meditating",
 ];
 
 export async function getTaskExtraction(prompt: string): Promise<TaskTimeExtractionType | null> {
