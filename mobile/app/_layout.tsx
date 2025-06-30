@@ -4,6 +4,9 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import { ToastProvider } from '../components/ToastContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,13 +27,17 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="auto" translucent backgroundColor="transparent" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
-      />
-    </GestureHandlerRootView>
+    <QueryClientProvider client={queryClient}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ToastProvider>
+          <StatusBar style="auto" translucent backgroundColor="transparent" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          />
+        </ToastProvider>
+      </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }

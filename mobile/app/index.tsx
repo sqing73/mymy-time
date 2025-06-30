@@ -8,7 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  ActivityIndicator
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
 import Animated, {
@@ -18,37 +19,67 @@ import Animated, {
   withTiming
 } from "react-native-reanimated";
 import { Image } from "expo-image";
+import { useTaskExtraction } from "@/hooks/useApi";
 
-enum taskEnum {
+export enum LocalTaskEnum {
   readingBooks = "reading-books",
   watchingTV = "watching-tv",
   playingVideoGames = "playing-video-games",
+  listeningToMusic = "listening-to-music",
+  studying = "studying",
+  workingOut = "working-out",
+  eating = "eating",
+  sleeping="sleeping",
+  doingHousework="doing-housework"
 };
 
 const backgroundImageNameMap = {
-  [taskEnum.readingBooks]: require("@/assets/images/reading-books.png"),
-  [taskEnum.watchingTV]: require("@/assets/images/watching-tv.png"),
-  [taskEnum.playingVideoGames]: require("@/assets/images/playing-video-games.png"),
+  [LocalTaskEnum.readingBooks]: require("@/assets/images/reading-books.png"),
+  [LocalTaskEnum.watchingTV]: require("@/assets/images/watching-tv.png"),
+  [LocalTaskEnum.playingVideoGames]: require("@/assets/images/playing-video-games.png"),
+  [LocalTaskEnum.listeningToMusic]: require("@/assets/images/listening-to-music.png"),
+  [LocalTaskEnum.studying]: require("@/assets/images/studying.png"),
+  [LocalTaskEnum.workingOut]: require("@/assets/images/working-out.png"),
+  [LocalTaskEnum.eating]: require("@/assets/images/eating.png"),
+  [LocalTaskEnum.sleeping]: require("@/assets/images/sleeping.png"),
+  [LocalTaskEnum.doingHousework]: require("@/assets/images/doing-housework.png"),
 };
 
 export default function Index() {
   const { selectedValue } = useNumberPickerStore();
-  const [countDown, setCountDown] = useState<number>(selectedValue * 60);
+  const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
   const timerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const buttonScale = useSharedValue(1);
   const buttonOpacity = useDerivedValue(() => {
     return 1.0 - ((buttonScale.value - 1) / (1.2 - 1)) * 0.4;
   });
-  const [task, setTask] = useState<taskEnum>(taskEnum.playingVideoGames);
   const [taskInput, setTaskInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
+  const { mutateAsync: extractTask, isPending } = useTaskExtraction();
+  const [image, setImage] = useState<LocalTaskEnum>(LocalTaskEnum.sleeping);
+  const ellipsis = useRef<string>("");
+  const originalTaskInput = useRef<string>("");
 
   useEffect(() => {
     if (selectedValue > 0) {
       setCountDown(selectedValue * 60);
     }
   }, [selectedValue]);
+  
+  // TODO: fix this
+  // useEffect(() => {
+  //   if (isPending) {
+  //     if (originalTaskInput.current === "") {
+  //       originalTaskInput.current = taskInput;
+  //     }
+  //     ellipsis.current = ellipsis.current + ".";
+  //     if (ellipsis.current.length > 3) {
+  //       ellipsis.current = "";
+  //     }
+  //     setTaskInput(originalTaskInput.current + ellipsis.current);
+  //   }
+  // }, [isPending, taskInput]);
 
   const formatTime = useCallback((time: number | null) => {
     if (time === null) return "00:00";
@@ -93,6 +124,13 @@ export default function Index() {
     };
   });
 
+  const handleSubmit = async () => {
+    const data = await extractTask({ prompt: taskInput });
+    setTaskInput(data.task);
+    setCountDown(data.time * 60);
+    setImage(data.image as LocalTaskEnum);
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
 
@@ -116,12 +154,14 @@ export default function Index() {
           placeholderTextColor="gray"
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          onSubmitEditing={handleSubmit} 
+          editable={!isPending}
         />
       </View>
 
       <View style={styles.imageContainer}>
         <Image
-          source={backgroundImageNameMap[task]}
+          source={backgroundImageNameMap[image]}
           style={[
             styles.backgroundImage,
           ]}
@@ -177,7 +217,7 @@ const styles = StyleSheet.create({
     height: 450,
   },
   taskInputContainer: {
-    marginTop: "10%",
+    marginTop: "8%",
   },
   taskInput: {
     width: "100%",
