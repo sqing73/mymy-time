@@ -11,15 +11,11 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
-import Animated, {
-  useAnimatedStyle,
-  useDerivedValue,
-  useSharedValue,
-  withTiming
-} from "react-native-reanimated";
 import { Image } from "expo-image";
 import { useTaskExtraction } from "@/hooks/useApi";
 import { useToast } from "@/components/ToastContext";
+import ImageGenerateConfirmationModal from "./image-generate-confirmation-modal";
+import PressableButton from "@/components/PressableButton";
 
 export enum LocalTaskEnum {
   readingBooks = "reading-books",
@@ -58,10 +54,6 @@ export default function Index() {
   const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
   const timerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const buttonScale = useSharedValue(1);
-  const buttonOpacity = useDerivedValue(() => {
-    return 1.0 - ((buttonScale.value - 1) / (1.2 - 1)) * 0.4;
-  });
   const [taskInput, setTaskInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
   const { mutateAsync: extractTask, isPending } = useTaskExtraction();
@@ -70,6 +62,7 @@ export default function Index() {
   const originalTaskInput = useRef<string>("");
   const ellipsisTimerRef = useRef<number | null>(null);
   const { showToast } = useToast();
+  const [isImageGenerateConfirmationModalVisible, setIsImageGenerateConfirmationModalVisible] = useState(false);
 
   useEffect(() => {
     if (selectedValue > 0) {
@@ -88,11 +81,15 @@ export default function Index() {
     router.push("/number-picker");
   };
 
-  const handlePlay = () => {
+  const pauseTimer = useCallback(() => {
+    clearInterval(timerRef.current!);
+    setIsPlaying(false);
+  }, []);
+
+  const handlePlayPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     if (isPlaying) {
-      clearInterval(timerRef.current!);
-      setIsPlaying(false);
+      pauseTimer();
       return;
     }
     if (!taskInput) {
@@ -108,23 +105,9 @@ export default function Index() {
       }
     }, 1000);
     setIsPlaying(true);
-  };
+  }, [pauseTimer, taskInput, showToast, isPlaying, countDown]);
 
-  const handlePressIn = () => {
-    buttonScale.value = withTiming(1.2, { duration: 100 });
-  };
-  const handlePressOut = () => {
-    buttonScale.value = withTiming(1, { duration: 100 });
-  };
-
-  const animatedButtonStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: buttonScale.value }],
-      opacity: buttonOpacity.value,
-    };
-  });
-
-  const handleTaskExtraction = async () => {
+  const handleTaskExtraction = useCallback(async () => {
     try {
       // start ellipsis animation
       originalTaskInput.current = taskInput;
@@ -148,7 +131,28 @@ export default function Index() {
       originalTaskInput.current = "";
       ellipsisTimerRef.current = null;
     }
-  };
+  }, [extractTask, taskInput]);
+
+  const handleImageGenerationOpen = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    if (isPending) {
+      return;
+    }
+    if (!taskInput) {
+      showToast("Please enter a task first!");
+      return;
+    }
+    pauseTimer();
+    setIsImageGenerateConfirmationModalVisible(true);
+  }, [pauseTimer, taskInput, showToast, isPending]);
+
+  const handleImageGenerationClose = useCallback(() => {
+    setIsImageGenerateConfirmationModalVisible(false);
+  }, []);
+
+  const handleImageGenerationConfirm = useCallback(() => {
+    setIsImageGenerateConfirmationModalVisible(false);
+  }, []);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -178,25 +182,30 @@ export default function Index() {
         </View>
 
         <View style={styles.imageContainer}>
-          <Image
-            source={backgroundImageNameMap[image]}
-            style={[
-              styles.backgroundImage,
-            ]}
-            contentFit="contain"
-            placeholder={"loading..."}
-          />
+          <Pressable onLongPress={handleImageGenerationOpen}>
+            <Image
+              source={backgroundImageNameMap[image]}
+              style={[
+                styles.backgroundImage,
+              ]}
+              contentFit="contain"
+              placeholder={"loading..."}
+            />
+          </Pressable>
         </View>
 
+        <PressableButton onPress={handlePlayPress} onLongPress={handlePlayPress}>
+          {isPlaying ?
+            <Feather name="pause-circle" size={60} color="black" /> :
+            <Feather name="play-circle" size={60} color="black" />
+          }
+        </PressableButton>
 
-        <Animated.View style={animatedButtonStyle}>
-          <Pressable onPress={handlePlay} onPressIn={handlePressIn} onPressOut={handlePressOut} onLongPress={handlePlay}>
-            {isPlaying ?
-              <Feather name="pause-circle" size={60} color="black" /> :
-              <Feather name="play-circle" size={60} color="black" />
-            }
-          </Pressable>
-        </Animated.View>
+        <ImageGenerateConfirmationModal
+          visible={isImageGenerateConfirmationModalVisible}
+          onClose={handleImageGenerationClose}
+          onConfirm={handleImageGenerationConfirm}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
