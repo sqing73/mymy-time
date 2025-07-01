@@ -9,7 +9,6 @@ import {
   Text,
   View,
   TouchableWithoutFeedback,
-  ActivityIndicator
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
 import Animated, {
@@ -20,6 +19,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { useTaskExtraction } from "@/hooks/useApi";
+import { useToast } from "@/components/ToastContext";
 
 export enum LocalTaskEnum {
   readingBooks = "reading-books",
@@ -29,8 +29,12 @@ export enum LocalTaskEnum {
   studying = "studying",
   workingOut = "working-out",
   eating = "eating",
-  sleeping="sleeping",
-  doingHousework="doing-housework"
+  sleeping = "sleeping",
+  doingHousework = "doing-housework",
+  cooking = "cooking",
+  meditating = "meditating",
+  takingShower = "taking-shower",
+  yawning = "yawning",
 };
 
 const backgroundImageNameMap = {
@@ -43,6 +47,10 @@ const backgroundImageNameMap = {
   [LocalTaskEnum.eating]: require("@/assets/images/eating.png"),
   [LocalTaskEnum.sleeping]: require("@/assets/images/sleeping.png"),
   [LocalTaskEnum.doingHousework]: require("@/assets/images/doing-housework.png"),
+  [LocalTaskEnum.cooking]: require("@/assets/images/cooking.png"),
+  [LocalTaskEnum.meditating]: require("@/assets/images/meditating.png"),
+  [LocalTaskEnum.takingShower]: require("@/assets/images/taking-shower.png"),
+  [LocalTaskEnum.yawning]: require("@/assets/images/yawning.png"), // default value, will not be returned by the API
 };
 
 export default function Index() {
@@ -57,29 +65,17 @@ export default function Index() {
   const [taskInput, setTaskInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
   const { mutateAsync: extractTask, isPending } = useTaskExtraction();
-  const [image, setImage] = useState<LocalTaskEnum>(LocalTaskEnum.sleeping);
+  const [image, setImage] = useState<LocalTaskEnum>(LocalTaskEnum.yawning);
   const ellipsis = useRef<string>("");
   const originalTaskInput = useRef<string>("");
+  const ellipsisTimerRef = useRef<number | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (selectedValue > 0) {
       setCountDown(selectedValue * 60);
     }
   }, [selectedValue]);
-  
-  // TODO: fix this
-  // useEffect(() => {
-  //   if (isPending) {
-  //     if (originalTaskInput.current === "") {
-  //       originalTaskInput.current = taskInput;
-  //     }
-  //     ellipsis.current = ellipsis.current + ".";
-  //     if (ellipsis.current.length > 3) {
-  //       ellipsis.current = "";
-  //     }
-  //     setTaskInput(originalTaskInput.current + ellipsis.current);
-  //   }
-  // }, [isPending, taskInput]);
 
   const formatTime = useCallback((time: number | null) => {
     if (time === null) return "00:00";
@@ -97,6 +93,10 @@ export default function Index() {
     if (isPlaying) {
       clearInterval(timerRef.current!);
       setIsPlaying(false);
+      return;
+    }
+    if (!taskInput) {
+      showToast("Please enter a task first!");
       return;
     }
 
@@ -124,62 +124,80 @@ export default function Index() {
     };
   });
 
-  const handleSubmit = async () => {
-    const data = await extractTask({ prompt: taskInput });
-    setTaskInput(data.task);
-    setCountDown(data.time * 60);
-    setImage(data.image as LocalTaskEnum);
+  const handleTaskExtraction = async () => {
+    try {
+      // start ellipsis animation
+      originalTaskInput.current = taskInput;
+      ellipsisTimerRef.current = setInterval(() => {
+        ellipsis.current = ellipsis.current + ".";
+        if (ellipsis.current.length > 3) {
+          ellipsis.current = "";
+        }
+        setTaskInput(originalTaskInput.current + ellipsis.current);
+      }, 1000);
+
+      const data = await extractTask({ prompt: taskInput });
+      setTaskInput(data.task);
+      setCountDown(data.time * 60);
+      setImage(data.image as LocalTaskEnum);
+    } catch {
+      setTaskInput(originalTaskInput.current);
+    } finally {
+      clearInterval(ellipsisTimerRef.current!);
+      ellipsis.current = "";
+      originalTaskInput.current = "";
+      ellipsisTimerRef.current = null;
+    }
   };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View
+        style={styles.background}
+      >
+        <View style={styles.timerContainer}>
+          <Pressable onPress={handleOpenNumberPicker}>
+            <Text style={styles.timerText}>
+              {formatTime(countDown)}
+            </Text>
+          </Pressable>
+        </View>
 
-    <View
-      style={styles.background}
-    >
-      <View style={styles.timerContainer}>
-        <Pressable onPress={handleOpenNumberPicker}>
-          <Text style={styles.timerText}>
-            {formatTime(countDown)}
-          </Text>
-        </Pressable>
+        <View style={styles.taskInputContainer}>
+          <TextInput
+            placeholder={isFocused ? "" : "reading books for an hour..."}
+            value={taskInput}
+            onChangeText={(text) => setTaskInput(text)}
+            style={styles.taskInput}
+            placeholderTextColor="gray"
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onSubmitEditing={handleTaskExtraction}
+            editable={!isPending}
+          />
+        </View>
+
+        <View style={styles.imageContainer}>
+          <Image
+            source={backgroundImageNameMap[image]}
+            style={[
+              styles.backgroundImage,
+            ]}
+            contentFit="contain"
+            placeholder={"loading..."}
+          />
+        </View>
+
+
+        <Animated.View style={animatedButtonStyle}>
+          <Pressable onPress={handlePlay} onPressIn={handlePressIn} onPressOut={handlePressOut} onLongPress={handlePlay}>
+            {isPlaying ?
+              <Feather name="pause-circle" size={60} color="black" /> :
+              <Feather name="play-circle" size={60} color="black" />
+            }
+          </Pressable>
+        </Animated.View>
       </View>
-
-      <View style={styles.taskInputContainer}>
-        <TextInput
-          placeholder={isFocused ? "" : "reading books for an hour..."}
-          value={taskInput}
-          onChangeText={(text) => setTaskInput(text)}
-          style={styles.taskInput}
-          placeholderTextColor="gray"
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onSubmitEditing={handleSubmit} 
-          editable={!isPending}
-        />
-      </View>
-
-      <View style={styles.imageContainer}>
-        <Image
-          source={backgroundImageNameMap[image]}
-          style={[
-            styles.backgroundImage,
-          ]}
-          contentFit="contain"
-          placeholder={"loading..."}
-        />
-      </View>
-
-
-      <Animated.View style={animatedButtonStyle}>
-        <Pressable onPress={handlePlay} onPressIn={handlePressIn} onPressOut={handlePressOut} onLongPress={handlePlay}>
-          {isPlaying ?
-            <Feather name="stop-circle" size={60} color="black" /> :
-            <Feather name="play-circle" size={60} color="black" />
-          }
-        </Pressable>
-      </Animated.View>
-    </View>
     </TouchableWithoutFeedback>
   );
 }

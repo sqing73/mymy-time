@@ -27,7 +27,7 @@ const Images = [
   "cooking",
   "eating",
   "sleeping",
-  "taking-a-shower",
+  "taking-shower",
   "meditating",
 ];
 
@@ -43,6 +43,7 @@ export async function getTaskExtraction(prompt: string): Promise<TaskTimeExtract
 
         # Instructions
         - Extract the task and the time it will take to complete the task.
+        - The extracted task should converted to present tense.
         - The time should be in minutes.
         - Select an image that best represents the task.
         - The image must be one of the following: ${Images.join(", ")}.
@@ -53,7 +54,7 @@ export async function getTaskExtraction(prompt: string): Promise<TaskTimeExtract
         </user_query>
         <task_extraction>
           {
-            "task": "reading books",
+            "task": "read books",
             "time": 120,
             "image": "reading-books"
           }
