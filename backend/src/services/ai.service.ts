@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import fs from "fs";
+
+const inputImageBase64 = fs.readFileSync("images/input.jpg", "base64");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -99,36 +102,53 @@ export async function getTaskImageMapping(prompt: string): Promise<string> {
 }
 
 export async function getTaskImage(prompt: string): Promise<string> {
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [
-      {
-        role: "system",
-        content: "Generate a Ghibli style mobile app background with the cat doing the task given. The cat should be at the middle of the screen."
-      },
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-    tools: [{
-      type: "image_generation",
-      quality: "low",
-      size: "1024x1536",
-      output_format: "jpeg",
-    }],
-  });
-  // TODO: remove saving to file after testing
-  const imageData = response.output
-    .filter((output) => output.type === "image_generation_call")
-    .map((output) => output.result);
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-4.1-mini",
+      input: [
+        {
+          role: "system",
+          content: "You are an expert at image generation. You will be given a photo of a cat and a task from the user to generate a new image of a cat doing the task in Ghibli style and transparent background for a mobile app background."
 
-  if (imageData.length > 0) {
-    const imageBase64 = imageData[0];
-    const fs = await import("fs");
-    const timestamp = Date.now();
-    fs.writeFileSync(`images/mymy-${timestamp}.jpeg`, Buffer.from(imageBase64!, "base64"));
-    return imageBase64!;
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: prompt
+            }, 
+            {
+              type: "input_image",
+              image_url: `data:image/jpeg;base64,${inputImageBase64}`,
+              detail: "auto"
+            }
+          ]
+        }
+      ],
+      tools: [{
+        type: "image_generation",
+        quality: "auto",
+        size: "1024x1536",
+        output_format: "png",
+        background: "transparent",
+      }],
+    });
+
+    // TODO: remove saving to file after testing
+    const imageData = response.output
+      .filter((output) => output.type === "image_generation_call")
+      .map((output) => output.result);
+
+    if (imageData.length > 0) {
+      const imageBase64 = imageData[0];
+      const fs = await import("fs");
+      const timestamp = Date.now();
+      fs.writeFileSync(`mymy-${timestamp}.jpeg`, Buffer.from(imageBase64!, "base64"));
+      return imageBase64 || "";
+    }
+  } catch (error) {
+    console.error("Error generating image", error);
   }
   return "";
 }

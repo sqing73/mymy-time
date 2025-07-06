@@ -17,16 +17,16 @@ export async function handleTaskExtractionRequest(req: Request, res: Response, n
 
 export async function handleTaskImageRequest(req: Request, res: Response, next: NextFunction) {
   try {
-    const { prompt } = req.body;
-    const imageBase64 = await getTaskImage(prompt);
+    res.setHeader("Content-Type", "text/plain");
     
-    if (!imageBase64) {
+    const { prompt } = req.body;
+    const imageBinary = await getTaskImage(prompt);
+    
+    if (!imageBinary) {
       return res.status(500).json({ error: "Failed to generate image" });
     }
     
-    // Set content type for JPEG image
-    res.setHeader("Content-Type", "image/jpeg");
-    res.send(Buffer.from(imageBase64, "base64"));
+    res.send(imageBinary);
   } catch (error) {
     next(error);
   }
