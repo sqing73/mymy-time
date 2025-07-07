@@ -12,10 +12,12 @@ import {
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
 import { Image } from "expo-image";
-import { useTaskExtraction } from "@/hooks/useApi";
+import { useImageGeneration, useTaskExtraction } from "@/hooks/useApi";
 import { useToast } from "@/components/ToastContext";
 import ImageGenerateConfirmationModal from "./image-generate-confirmation-modal";
 import PressableButton from "@/components/PressableButton";
+import * as FileSystem from "expo-file-system";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, withRepeat } from "react-native-reanimated";
 
 export enum LocalTaskEnum {
   readingBooks = "reading-books",
@@ -49,6 +51,12 @@ const backgroundImageNameMap = {
   [LocalTaskEnum.yawning]: require("@/assets/images/yawning.png"), // default value, will not be returned by the API
 };
 
+interface ImageSource {
+  uri: string;
+}
+
+const AnimatedFeather = Animated.createAnimatedComponent(Feather);
+
 export default function Index() {
   const { selectedValue } = useNumberPickerStore();
   const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
@@ -56,13 +64,21 @@ export default function Index() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [taskInput, setTaskInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
-  const { mutateAsync: extractTask, isPending } = useTaskExtraction();
-  const [image, setImage] = useState<LocalTaskEnum>(LocalTaskEnum.yawning);
+  const { mutateAsync: extractTask, isPending: isExtractingTask } = useTaskExtraction();
+  const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
+  const [image, setImage] = useState<LocalTaskEnum | ImageSource>(LocalTaskEnum.yawning);
   const ellipsis = useRef<string>("");
   const originalTaskInput = useRef<string>("");
   const ellipsisTimerRef = useRef<number | null>(null);
   const { showToast } = useToast();
   const [isImageGenerateConfirmationModalVisible, setIsImageGenerateConfirmationModalVisible] = useState(false);
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(isGeneratingImage ? 0.5 : 1, { duration: 1000 }),
+  }));
+  const rotate = useSharedValue(0);
+  const animatedLoadingIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotate.value}deg` }],
+  }));
 
   useEffect(() => {
     if (selectedValue > 0) {
@@ -135,7 +151,7 @@ export default function Index() {
 
   const handleImageGenerationOpen = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    if (isPending) {
+    if (isExtractingTask) {
       return;
     }
     if (!taskInput) {
@@ -144,15 +160,21 @@ export default function Index() {
     }
     pauseTimer();
     setIsImageGenerateConfirmationModalVisible(true);
-  }, [pauseTimer, taskInput, showToast, isPending]);
+  }, [pauseTimer, taskInput, showToast, isExtractingTask]);
 
   const handleImageGenerationClose = useCallback(() => {
     setIsImageGenerateConfirmationModalVisible(false);
   }, []);
 
-  const handleImageGenerationConfirm = useCallback(() => {
+  const handleImageGenerationConfirm = useCallback(async () => {
     setIsImageGenerateConfirmationModalVisible(false);
-  }, []);
+    rotate.value = withRepeat(withTiming(rotate.value + 360, { duration: 1000 }), -1, false); 
+    const imageBase64 = await generateImage({ prompt: taskInput });
+    const uri = FileSystem.documentDirectory + `images/${taskInput}-${Date.now()}.png`;
+    await FileSystem.writeAsStringAsync(uri, imageBase64, { encoding: FileSystem.EncodingType.Base64 });
+    setImage({ uri });
+    rotate.value = 0;
+  }, [generateImage, taskInput, rotate]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -177,21 +199,29 @@ export default function Index() {
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             onSubmitEditing={handleTaskExtraction}
-            editable={!isPending}
+            editable={!isExtractingTask && !isGeneratingImage}
           />
         </View>
 
         <View style={styles.imageContainer}>
-          <Pressable onLongPress={handleImageGenerationOpen}>
-            <Image
-              source={backgroundImageNameMap[image]}
-              style={[
-                styles.backgroundImage,
-              ]}
-              contentFit="contain"
-              placeholder={"loading..."}
-            />
-          </Pressable>
+          {isGeneratingImage && (
+            <View style={styles.loadingContainer}>
+              <AnimatedFeather name="loader" size={40} color="black" style={animatedLoadingIconStyle} />
+              <Text style={styles.loadingText}>This may take a while...</Text>
+            </View>
+          )}
+          <Animated.View style={[animatedImageStyle]}>
+            <Pressable onLongPress={handleImageGenerationOpen}>
+              <Image
+                source={Object.values(LocalTaskEnum).includes(image as LocalTaskEnum) ? backgroundImageNameMap[image as LocalTaskEnum] : image}
+                style={[
+                  styles.backgroundImage,
+                ]}
+                contentFit="contain"
+                placeholder={"loading..."}
+              />
+            </Pressable>
+          </Animated.View>
         </View>
 
         <PressableButton onPress={handlePlayPress} onLongPress={handlePlayPress}>
@@ -251,5 +281,19 @@ const styles = StyleSheet.create({
     height: 20,
     fontSize: 20,
     fontFamily: "LXGWWenKaiMonoTC-Regular",
+  },
+  loadingContainer: {
+    position: "absolute",
+    top: "30%",
+    zIndex: 1000,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  loadingText: {
+    fontSize: 15,
+    fontFamily: "LXGWWenKaiMonoTC-Regular",
+    marginTop: 10,
+    textAlign: "center",
   },
 });

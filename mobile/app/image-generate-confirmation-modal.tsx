@@ -36,7 +36,7 @@ const ImageGenerateConfirmationModal = ({ visible, onClose, onConfirm }: ImageGe
             <Text
               style={styles.modalText}
             >
-              Let&apos;s generate an image for you.
+              Want to generate an image for your task?
             </Text>
             <Pressable onPress={handleConfirmPress} onLongPress={handleConfirmPress}>
               <View style={styles.confirmButton}>

@@ -13,6 +13,10 @@ export interface TaskExtractionResponse {
   image: LocalTaskEnum;
 }
 
+export interface ImageGenerationRequest {
+  prompt: string;
+}
+
 export const useTaskExtraction = () => {
   const { showToast } = useToast();
 
@@ -29,5 +33,25 @@ export const useTaskExtraction = () => {
         showToast("Network error occurred");
       }
     },
+    retry: false,
+  });
+};
+
+export const useImageGeneration = () => {
+  const { showToast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: ImageGenerationRequest): Promise<string> => {
+      const response = await apiClient.post(apiEndpoints.aiImageGeneration, data, { responseType: "text" });
+      return response.data;
+    },
+    onError: (error: any) => {
+      if (error.response?.data?.error) {
+        showToast(error.response.data.error);
+      } else {
+        showToast("Image generation failed");
+      }
+    },
+    retry: false,
   });
 };

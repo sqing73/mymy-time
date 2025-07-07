@@ -2,7 +2,7 @@ import axios from "axios";
 
 export const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
-  timeout: 10000,
+  timeout: 200000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -40,4 +40,5 @@ apiClient.interceptors.response.use(
 
 export const apiEndpoints = {
   aiTaskExtraction: "/ai/task-extraction",
+  aiImageGeneration: "/ai/task-image-generation",
 } as const;

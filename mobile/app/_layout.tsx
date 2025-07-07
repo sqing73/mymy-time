@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { ToastProvider } from '../components/ToastContext';
+import * as FileSystem from "expo-file-system";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,6 +18,17 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    const prepareApp = async () => {
+      try {
+        await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + "/images", {
+          intermediates: true,
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    prepareApp();
     if (loaded) {
       SplashScreen.hideAsync();
     }
