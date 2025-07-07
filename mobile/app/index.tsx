@@ -66,6 +66,7 @@ export default function Index() {
   const [isFocused, setIsFocused] = useState(false);
   const { mutateAsync: extractTask, isPending: isExtractingTask } = useTaskExtraction();
   const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
+  const [isTaskInputValid, setIsTaskInputValid] = useState(false);
   const [image, setImage] = useState<LocalTaskEnum | ImageSource>(LocalTaskEnum.yawning);
   const ellipsis = useRef<string>("");
   const originalTaskInput = useRef<string>("");
@@ -139,8 +140,10 @@ export default function Index() {
       setTaskInput(data.task);
       setCountDown(data.time * 60);
       setImage(data.image as LocalTaskEnum);
+      setIsTaskInputValid(true);
     } catch {
       setTaskInput(originalTaskInput.current);
+      setIsTaskInputValid(false);
     } finally {
       clearInterval(ellipsisTimerRef.current!);
       ellipsis.current = "";
@@ -158,9 +161,13 @@ export default function Index() {
       showToast("Please enter a task first!");
       return;
     }
+    if (!isTaskInputValid) {
+      showToast("Please enter a valid task first!");
+      return;
+    }
     pauseTimer();
     setIsImageGenerateConfirmationModalVisible(true);
-  }, [pauseTimer, taskInput, showToast, isExtractingTask]);
+  }, [pauseTimer, taskInput, showToast, isExtractingTask, isTaskInputValid]);
 
   const handleImageGenerationClose = useCallback(() => {
     setIsImageGenerateConfirmationModalVisible(false);
@@ -191,7 +198,7 @@ export default function Index() {
 
         <View style={styles.taskInputContainer}>
           <TextInput
-            placeholder={isFocused ? "" : "reading books for an hour..."}
+            placeholder={isFocused ? "" : "e.g. reading book for an hour"}
             value={taskInput}
             onChangeText={(text) => setTaskInput(text)}
             style={styles.taskInput}
