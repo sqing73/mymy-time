@@ -1,4 +1,4 @@
-import { useNumberPickerStore } from "@/stores/numberPickerStore";
+import { useTimerStore } from "@/stores/timerStore";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -51,7 +51,7 @@ const Ruler = ({ items }: { items: number[] }) => {
 };
 
 export default function NumberPickerScreen() {
-  const { setSelectedValue } = useNumberPickerStore();
+  const { setSelectedValue } = useTimerStore();
   const items = Array.from({ length: 106 }, (_, i) => i + 15); // 15 ~ 120
 
   const [indicatorX, setIndicatorX] = useState(15);

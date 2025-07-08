@@ -43,11 +43,10 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ToastProvider>
           <StatusBar style="auto" translucent backgroundColor="transparent" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          />
+          <Stack>
+            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+            <Stack.Screen name="number-picker" options={{ headerShown: false }} />
+          </Stack>
         </ToastProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>

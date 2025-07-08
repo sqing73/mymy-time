@@ -37,9 +37,9 @@ const ImageGenerateConfirmationModal = ({ visible, onClose, onConfirm }: ImageGe
             <Text
               style={styles.modalText}
             >
-              Want to generate an image for your task?
+              Want to generate an image for your activity?
             </Text>
-            <PressableButton onPress={handleConfirmPress} onLongPress={handleConfirmPress} style={styles.confirmButton}>
+            <PressableButton onPress={handleConfirmPress} style={styles.confirmButton}>
               <Text style={styles.modalText}>Yes, please! - </Text>
               <Image source={require("@/assets/images/coin.png")} style={styles.coinImage} />
             </PressableButton>
