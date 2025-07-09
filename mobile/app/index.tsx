@@ -1,4 +1,4 @@
-import { useTimerStore } from "@/stores/timerStore";
+import { useTimerStore, LocalActivityEnum } from "@/stores/timerStore";
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -9,6 +9,7 @@ import {
   Text,
   View,
   TouchableWithoutFeedback,
+  Dimensions,
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
 import { Image } from "expo-image";
@@ -24,22 +25,6 @@ import Animated, {
   withTiming,
   withRepeat,
 } from "react-native-reanimated";
-
-export enum LocalActivityEnum {
-  readingBooks = "reading-books",
-  watchingTV = "watching-tv",
-  playingVideoGames = "playing-video-games",
-  listeningToMusic = "listening-to-music",
-  studying = "studying",
-  workingOut = "working-out",
-  eating = "eating",
-  sleeping = "sleeping",
-  doingHousework = "doing-housework",
-  cooking = "cooking",
-  meditating = "meditating",
-  takingShower = "taking-shower",
-  yawning = "yawning",
-};
 
 const backgroundImageNameMap = {
   [LocalActivityEnum.readingBooks]: require("@/assets/images/reading-books.png"),
@@ -57,22 +42,19 @@ const backgroundImageNameMap = {
   [LocalActivityEnum.yawning]: require("@/assets/images/yawning.png"), // default value, will not be returned by the API
 };
 
-interface ImageSource {
-  uri: string;
-}
+const { width: screenWidth } = Dimensions.get("screen");
 
 const AnimatedFeather = Animated.createAnimatedComponent(Feather);
 
 export default function Index() {
   const { showToast } = useToast();
 
-  const { selectedValue, isTimerRunning, setIsTimerRunning } = useTimerStore();
+  const { selectedValue, isTimerRunning, setIsTimerRunning, backgroundImage, setBackgroundImage } = useTimerStore();
   const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
   const timerRef = useRef<number | null>(null);
   const [activityInput, setActivityInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
   const [isActivityInputValid, setIsActivityInputValid] = useState(false);
-  const [image, setImage] = useState<LocalActivityEnum | ImageSource>(LocalActivityEnum.yawning);
   const [isImageGenerateConfirmationModalVisible, setIsImageGenerateConfirmationModalVisible] = useState(false);
 
   const ellipsis = useRef<string>("");
@@ -171,7 +153,7 @@ export default function Index() {
       const data = await extractActivity({ prompt: activityInput });
       setActivityInput(data.activity);
       setCountDown(data.time * 60);
-      setImage(data.image as LocalActivityEnum);
+      setBackgroundImage(data.image as LocalActivityEnum);
       setIsActivityInputValid(true);
     } catch {
       setActivityInput(originalActivityInput.current);
@@ -182,7 +164,7 @@ export default function Index() {
       originalActivityInput.current = "";
       ellipsisTimerRef.current = null;
     }
-  }, [extractActivity, activityInput]);
+  }, [activityInput, extractActivity, setBackgroundImage]);
 
   const handleImageGenerationOpen = useCallback(async () => {
     if (shouldLockScreen) {
@@ -219,9 +201,9 @@ export default function Index() {
     const imageBase64 = await generateImage({ prompt: activityInput });
     const uri = FileSystem.documentDirectory + `images/${activityInput}-${Date.now()}.png`;
     await FileSystem.writeAsStringAsync(uri, imageBase64, { encoding: FileSystem.EncodingType.Base64 });
-    setImage({ uri });
+    setBackgroundImage({ uri });
     rotate.value = 0;
-  }, [generateImage, activityInput, rotate]);
+  }, [rotate, generateImage, activityInput, setBackgroundImage]);
 
   const handleScreenLongPress = useCallback(() => {
     if (isTimerRunning) {
@@ -234,7 +216,7 @@ export default function Index() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} onLongPress={handleScreenLongPress}>
       <View
-        style={styles.background}
+        style={styles.container}
       >
         <View style={styles.headerContainer}>
           <Animated.View style={animatedSettingsIconStyle}>
@@ -259,7 +241,7 @@ export default function Index() {
 
         <View style={styles.activityInputContainer}>
           <TextInput
-            placeholder={isFocused ? "" : "e.g. read a book for an hour"}
+            placeholder={isFocused ? "" : "read for an hour"}
             value={activityInput}
             onChangeText={(text) => setActivityInput(text)}
             style={styles.activityInput}
@@ -268,6 +250,7 @@ export default function Index() {
             onBlur={() => setIsFocused(false)}
             onSubmitEditing={handleActivityExtraction}
             editable={!shouldLockScreen}
+            maxLength={32}
           />
         </View>
 
@@ -281,10 +264,11 @@ export default function Index() {
           <Animated.View style={[animatedImageStyle]}>
             <Pressable onLongPress={handleImageGenerationOpen}>
               <Image
-                source={Object.values(LocalActivityEnum).includes(image as LocalActivityEnum) ? backgroundImageNameMap[image as LocalActivityEnum] : image}
-                style={[
-                  styles.backgroundImage,
-                ]}
+                source={Object.values(LocalActivityEnum).includes(backgroundImage as LocalActivityEnum) ? backgroundImageNameMap[backgroundImage as LocalActivityEnum] : backgroundImage}
+                style={{
+                  width: screenWidth * 0.7,
+                  height: screenWidth * 0.7 * 1.5,
+                }}
                 contentFit="contain"
                 placeholder={"loading..."}
               />
@@ -309,7 +293,7 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  background: {
+  container: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -327,7 +311,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   timerContainer: {
-    flex: 1,
     alignItems: "center",
   },
   timerText: {
@@ -344,13 +327,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backgroundImage: {
-    width: 300,
-    height: 450,
-  },
   activityInputContainer: {
     marginTop: "8%",
     marginBottom: "3%",
+    maxWidth: "80%",
   },
   activityInput: {
     width: "100%",
