@@ -44,8 +44,10 @@ export default function RootLayout() {
         <ToastProvider>
           <StatusBar style="auto" translucent backgroundColor="transparent" />
           <Stack>
-            <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="number-picker" options={{ headerShown: false }} />
+            <Stack.Screen name="settings" options={{ headerShown: false }} />
+            <Stack.Screen name="gallery" options={{ headerShown: false }} />
           </Stack>
         </ToastProvider>
       </GestureHandlerRootView>

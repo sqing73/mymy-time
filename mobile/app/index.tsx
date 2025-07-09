@@ -17,7 +17,13 @@ import { useToast } from "@/components/ToastContext";
 import ImageGenerateConfirmationModal from "@/components/image-generate-confirmation-modal";
 import PressableButton from "@/components/PressableButton";
 import * as FileSystem from "expo-file-system";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming, withRepeat } from "react-native-reanimated";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  useDerivedValue,
+  withTiming,
+  withRepeat,
+} from "react-native-reanimated";
 
 export enum LocalActivityEnum {
   readingBooks = "reading-books",
@@ -58,27 +64,53 @@ interface ImageSource {
 const AnimatedFeather = Animated.createAnimatedComponent(Feather);
 
 export default function Index() {
+  const { showToast } = useToast();
+
   const { selectedValue, isTimerRunning, setIsTimerRunning } = useTimerStore();
   const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
   const timerRef = useRef<number | null>(null);
   const [activityInput, setActivityInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
-  const { mutateAsync: extractActivity, isPending: isExtractingActivity } = useActivityExtraction();
-  const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
   const [isActivityInputValid, setIsActivityInputValid] = useState(false);
   const [image, setImage] = useState<LocalActivityEnum | ImageSource>(LocalActivityEnum.yawning);
+  const [isImageGenerateConfirmationModalVisible, setIsImageGenerateConfirmationModalVisible] = useState(false);
+
   const ellipsis = useRef<string>("");
   const originalActivityInput = useRef<string>("");
   const ellipsisTimerRef = useRef<number | null>(null);
-  const { showToast } = useToast();
-  const [isImageGenerateConfirmationModalVisible, setIsImageGenerateConfirmationModalVisible] = useState(false);
+
+  const { mutateAsync: extractActivity, isPending: isExtractingActivity } = useActivityExtraction();
+  const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
+
   const animatedImageStyle = useAnimatedStyle(() => ({
     opacity: withTiming(isGeneratingImage ? 0.5 : 1, { duration: 1000 }),
   }));
   const rotate = useSharedValue(0);
+  const settingsIconTranslateX = useSharedValue(0);
+  const galleryIconTranslateX = useDerivedValue(() => {
+    return -settingsIconTranslateX.value;
+  });
+  const playButtonTranslateY = useDerivedValue(() => {
+    // Play button moves downward with more translation (negative value = downward)
+    return -settingsIconTranslateX.value * 4; // 2x more movement than icons
+  });
+
   const animatedLoadingIconStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotate.value}deg` }],
   }));
+
+  const animatedSettingsIconStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: settingsIconTranslateX.value }],
+  }));
+
+  const animatedGalleryIconStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: galleryIconTranslateX.value }],
+  }));
+
+  const animatedPlayButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: playButtonTranslateY.value }]
+  }));
+
   const shouldLockScreen = isTimerRunning || isExtractingActivity || isGeneratingImage;
 
   useEffect(() => {
@@ -95,6 +127,9 @@ export default function Index() {
   }, []);
 
   const handleOpenNumberPicker = () => {
+    if (shouldLockScreen) {
+      return;
+    }
     router.push("/number-picker");
   };
 
@@ -105,12 +140,8 @@ export default function Index() {
 
   const handlePlayPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    if (isTimerRunning) {
-      pauseTimer();
-      return;
-    }
     if (!activityInput) {
-      showToast("Please enter a task first!");
+      showToast("Please enter an activity first!");
       return;
     }
 
@@ -122,7 +153,8 @@ export default function Index() {
       }
     }, 1000);
     setIsTimerRunning(true);
-  }, [pauseTimer, activityInput, showToast, isTimerRunning, countDown, setIsTimerRunning]);
+    settingsIconTranslateX.value = withTiming(-100, { duration: 300 });
+  }, [activityInput, showToast, countDown, setIsTimerRunning, settingsIconTranslateX]);
 
   const handleActivityExtraction = useCallback(async () => {
     try {
@@ -153,6 +185,9 @@ export default function Index() {
   }, [extractActivity, activityInput]);
 
   const handleImageGenerationOpen = useCallback(async () => {
+    if (shouldLockScreen) {
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     if (isExtractingActivity) {
       return;
@@ -165,9 +200,14 @@ export default function Index() {
       showToast("Please enter a valid activity first!");
       return;
     }
-    pauseTimer();
     setIsImageGenerateConfirmationModalVisible(true);
-  }, [pauseTimer, activityInput, showToast, isExtractingActivity, isActivityInputValid]);
+  }, [
+    activityInput,
+    showToast,
+    isExtractingActivity,
+    isActivityInputValid,
+    shouldLockScreen,
+  ]);
 
   const handleImageGenerationClose = useCallback(() => {
     setIsImageGenerateConfirmationModalVisible(false);
@@ -175,7 +215,7 @@ export default function Index() {
 
   const handleImageGenerationConfirm = useCallback(async () => {
     setIsImageGenerateConfirmationModalVisible(false);
-    rotate.value = withRepeat(withTiming(rotate.value + 360, { duration: 1000 }), -1, false); 
+    rotate.value = withRepeat(withTiming(rotate.value + 360, { duration: 1000 }), -1, false);
     const imageBase64 = await generateImage({ prompt: activityInput });
     const uri = FileSystem.documentDirectory + `images/${activityInput}-${Date.now()}.png`;
     await FileSystem.writeAsStringAsync(uri, imageBase64, { encoding: FileSystem.EncodingType.Base64 });
@@ -183,13 +223,34 @@ export default function Index() {
     rotate.value = 0;
   }, [generateImage, activityInput, rotate]);
 
+  const handleScreenLongPress = useCallback(() => {
+    if (isTimerRunning) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      settingsIconTranslateX.value = withTiming(0, { duration: 300 });
+      pauseTimer();
+    }
+  }, [isTimerRunning, settingsIconTranslateX, pauseTimer]);
+
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} onLongPress={handleScreenLongPress}>
       <View
         style={styles.background}
       >
+        <View style={styles.headerContainer}>
+          <Animated.View style={animatedSettingsIconStyle}>
+            <Pressable onPress={() => router.push("/settings")}>
+              <Feather name="settings" size={24} color="black" />
+            </Pressable>
+          </Animated.View>
+          <Animated.View style={animatedGalleryIconStyle}>
+            <Pressable onPress={() => router.push("/gallery")}>
+              <Feather name="image" size={24} color="black" />
+            </Pressable>
+          </Animated.View>
+        </View>
+
         <View style={styles.timerContainer}>
-          <Pressable onPress={handleOpenNumberPicker} disabled={shouldLockScreen}>
+          <Pressable onPress={handleOpenNumberPicker}>
             <Text style={styles.timerText}>
               {formatTime(countDown)}
             </Text>
@@ -218,7 +279,7 @@ export default function Index() {
             </View>
           )}
           <Animated.View style={[animatedImageStyle]}>
-            <Pressable onLongPress={handleImageGenerationOpen} disabled={shouldLockScreen}>
+            <Pressable onLongPress={handleImageGenerationOpen}>
               <Image
                 source={Object.values(LocalActivityEnum).includes(image as LocalActivityEnum) ? backgroundImageNameMap[image as LocalActivityEnum] : image}
                 style={[
@@ -231,11 +292,10 @@ export default function Index() {
           </Animated.View>
         </View>
 
-        <PressableButton onPress={handlePlayPress} onLongPress={handlePlayPress}>
-          {isTimerRunning ?
-            <Feather name="pause-circle" size={60} color="black" /> :
-            <Feather name="play-circle" size={60} color="black" />
-          }
+        <PressableButton onPress={handlePlayPress} disabled={isTimerRunning}>
+          <Animated.View style={animatedPlayButtonStyle}>
+            <Feather name={"play-circle"} size={60} color="black" />
+          </Animated.View>
         </PressableButton>
 
         <ImageGenerateConfirmationModal
@@ -257,6 +317,15 @@ const styles = StyleSheet.create({
     paddingTop: "30%",
     paddingBottom: "20%",
   },
+  headerContainer: {
+    position: "absolute",
+    top: 60,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
   timerContainer: {
     flex: 1,
     alignItems: "center",
@@ -274,7 +343,6 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: "3%",
   },
   backgroundImage: {
     width: 300,
@@ -282,6 +350,7 @@ const styles = StyleSheet.create({
   },
   activityInputContainer: {
     marginTop: "8%",
+    marginBottom: "3%",
   },
   activityInput: {
     width: "100%",

@@ -162,9 +162,9 @@ const styles = StyleSheet.create({
     marginTop: 200,
   },
   closeButton: {
-    alignSelf: "flex-start",
+    position: "absolute",
     left: 20,
-    top: 20,
+    top: "10%",
   },
   ruler: {
     alignItems: "flex-end",

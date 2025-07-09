@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { apiClient, apiEndpoints } from "../lib/api";
 import { useToast } from "../components/ToastContext";
-import { LocalActivityEnum } from "@/app/(drawer)/index";
+import { LocalActivityEnum } from "@/app/index";
 
 export interface ActivityExtractionRequest {
   prompt: string;
