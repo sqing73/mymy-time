@@ -4,10 +4,12 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
-import { ToastProvider } from '../components/ToastContext';
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { ToastProvider } from "@/components/ToastContext";
 import * as FileSystem from "expo-file-system";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { storePresetImages } from "@/lib/imageUtils";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,8 +25,18 @@ export default function RootLayout() {
         await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + "/images", {
           intermediates: true,
         });
+
+        const isFirstTime = await AsyncStorage.getItem("isFirstTime");
+        
+        if (isFirstTime === null) {
+          await AsyncStorage.setItem("isFirstTime", "false");
+          const presetImages = process.env.EXPO_PUBLIC_PRESET_IMAGES?.split(",") || [];
+          await storePresetImages(presetImages);
+        }
+
+        await AsyncStorage.removeItem("isFirstTime");
       } catch (error) {
-        console.log(error);
+        console.log('Error in prepareApp:', error);
       }
     };
 

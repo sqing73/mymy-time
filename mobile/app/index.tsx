@@ -1,4 +1,4 @@
-import { useTimerStore, LocalActivityEnum } from "@/stores/timerStore";
+import { useTimerStore } from "@/stores/timerStore";
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -17,7 +17,6 @@ import { useImageGeneration, useActivityExtraction } from "@/hooks/useApi";
 import { useToast } from "@/components/ToastContext";
 import ImageGenerateConfirmationModal from "@/components/image-generate-confirmation-modal";
 import PressableButton from "@/components/PressableButton";
-import * as FileSystem from "expo-file-system";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -25,22 +24,7 @@ import Animated, {
   withTiming,
   withRepeat,
 } from "react-native-reanimated";
-
-const backgroundImageNameMap = {
-  [LocalActivityEnum.readingBooks]: require("@/assets/images/reading-books.png"),
-  [LocalActivityEnum.watchingTV]: require("@/assets/images/watching-tv.png"),
-  [LocalActivityEnum.playingVideoGames]: require("@/assets/images/playing-video-games.png"),
-  [LocalActivityEnum.listeningToMusic]: require("@/assets/images/listening-to-music.png"),
-  [LocalActivityEnum.studying]: require("@/assets/images/studying.png"),
-  [LocalActivityEnum.workingOut]: require("@/assets/images/working-out.png"),
-  [LocalActivityEnum.eating]: require("@/assets/images/eating.png"),
-  [LocalActivityEnum.sleeping]: require("@/assets/images/sleeping.png"),
-  [LocalActivityEnum.doingHousework]: require("@/assets/images/doing-housework.png"),
-  [LocalActivityEnum.cooking]: require("@/assets/images/cooking.png"),
-  [LocalActivityEnum.meditating]: require("@/assets/images/meditating.png"),
-  [LocalActivityEnum.takingShower]: require("@/assets/images/taking-shower.png"),
-  [LocalActivityEnum.yawning]: require("@/assets/images/yawning.png"), // default value, will not be returned by the API
-};
+import { getImageUriFromFileSystem, writeImageToFileSystem } from "@/lib/imageUtils";
 
 const { width: screenWidth } = Dimensions.get("screen");
 
@@ -67,7 +51,7 @@ export default function Index() {
   const animatedImageStyle = useAnimatedStyle(() => ({
     opacity: withTiming(isGeneratingImage ? 0.5 : 1, { duration: 1000 }),
   }));
-  const rotate = useSharedValue(0);
+  const loadingIconRotate = useSharedValue(0);
   const settingsIconTranslateX = useSharedValue(0);
   const galleryIconTranslateX = useDerivedValue(() => {
     return -settingsIconTranslateX.value;
@@ -78,7 +62,7 @@ export default function Index() {
   });
 
   const animatedLoadingIconStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotate.value}deg` }],
+    transform: [{ rotate: `${loadingIconRotate.value}deg` }],
   }));
 
   const animatedSettingsIconStyle = useAnimatedStyle(() => ({
@@ -153,7 +137,12 @@ export default function Index() {
       const data = await extractActivity({ prompt: activityInput });
       setActivityInput(data.activity);
       setCountDown(data.time * 60);
-      setBackgroundImage(data.image as LocalActivityEnum);
+      const uri = await getImageUriFromFileSystem(data.image);
+      if (uri) {
+        setBackgroundImage({ uri });
+      } else {
+        showToast("No image found for the activity!");
+      }
       setIsActivityInputValid(true);
     } catch {
       setActivityInput(originalActivityInput.current);
@@ -164,7 +153,7 @@ export default function Index() {
       originalActivityInput.current = "";
       ellipsisTimerRef.current = null;
     }
-  }, [activityInput, extractActivity, setBackgroundImage]);
+  }, [activityInput, extractActivity, setBackgroundImage, showToast]);
 
   const handleImageGenerationOpen = useCallback(async () => {
     if (shouldLockScreen) {
@@ -196,14 +185,22 @@ export default function Index() {
   }, []);
 
   const handleImageGenerationConfirm = useCallback(async () => {
-    setIsImageGenerateConfirmationModalVisible(false);
-    rotate.value = withRepeat(withTiming(rotate.value + 360, { duration: 1000 }), -1, false);
-    const imageBase64 = await generateImage({ prompt: activityInput });
-    const uri = FileSystem.documentDirectory + `images/${activityInput}-${Date.now()}.png`;
-    await FileSystem.writeAsStringAsync(uri, imageBase64, { encoding: FileSystem.EncodingType.Base64 });
-    setBackgroundImage({ uri });
-    rotate.value = 0;
-  }, [rotate, generateImage, activityInput, setBackgroundImage]);
+    try {
+      setIsImageGenerateConfirmationModalVisible(false);
+      loadingIconRotate.value = withRepeat(withTiming(loadingIconRotate.value + 360, { duration: 1000 }), -1, false);
+      const imageBase64 = await generateImage({ prompt: activityInput });
+      const uri = await writeImageToFileSystem(imageBase64, activityInput);
+      setBackgroundImage({ uri });
+    } catch (error: unknown) {
+      if (error instanceof Error && (error.message.includes('ENOSPC') || error.message.toLowerCase().includes('quota'))) {
+        showToast("Your device is out of storage space. Please free up some space and try again.");
+        return;
+      }
+      showToast("Failed to generate image!");
+    } finally {
+      loadingIconRotate.value = 0;
+    }
+  }, [loadingIconRotate, generateImage, activityInput, setBackgroundImage, showToast]);
 
   const handleScreenLongPress = useCallback(() => {
     if (isTimerRunning) {
@@ -252,6 +249,7 @@ export default function Index() {
             editable={!shouldLockScreen}
             maxLength={32}
           />
+          <View style={[styles.bottomLine, { width: Math.max(screenWidth * 0.6, activityInput.length * 10) }]} />
         </View>
 
         <View style={styles.imageContainer}>
@@ -264,7 +262,7 @@ export default function Index() {
           <Animated.View style={[animatedImageStyle]}>
             <Pressable onLongPress={handleImageGenerationOpen}>
               <Image
-                source={Object.values(LocalActivityEnum).includes(backgroundImage as LocalActivityEnum) ? backgroundImageNameMap[backgroundImage as LocalActivityEnum] : backgroundImage}
+                source={backgroundImage}
                 style={{
                   width: screenWidth * 0.7,
                   height: screenWidth * 0.7 * 1.5,
@@ -331,12 +329,15 @@ const styles = StyleSheet.create({
     marginTop: "8%",
     marginBottom: "3%",
     maxWidth: "80%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   activityInput: {
     width: "100%",
     height: 20,
     fontSize: 20,
-    fontFamily: "LXGWWenKaiMonoTC-Regular",
+    fontFamily: "LXGWWenKaiMonoTC-Bold",
+    textAlign: "center",
   },
   loadingContainer: {
     position: "absolute",
@@ -351,5 +352,12 @@ const styles = StyleSheet.create({
     fontFamily: "LXGWWenKaiMonoTC-Regular",
     marginTop: 10,
     textAlign: "center",
+  },
+  bottomLine: {
+    marginTop: 10,
+    alignSelf: "center",
+    borderBottomWidth: 1,
+    borderRadius: 10,
+    borderColor: "gray",
   },
 });
