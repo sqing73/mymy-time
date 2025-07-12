@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { getImagesFromFileSystem } from "@/lib/imageUtils";
 import { useTimerStore } from "@/stores/timerStore";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const numColumns = 2;
 const imageSize = (width - 60) / numColumns; // 60 = padding + gap
 
@@ -31,7 +31,7 @@ export default function GalleryScreen() {
       const galleryImages = await getImagesFromFileSystem();
       setImages(galleryImages);
     } catch (error) {
-      console.error('Error loading images:', error);
+      console.error("Error loading images:", error);
     } finally {
       setIsLoading(false);
     }
@@ -155,8 +155,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontFamily: 'LXGWWenKaiMonoTC-Bold',
-    color: 'black',
+    fontFamily: "LXGWWenKaiMonoTC-Bold",
+    color: "black",
   },
   placeholder: {
     width: 40,
@@ -168,19 +168,19 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 18,
-    fontFamily: 'LXGWWenKaiMonoTC-Regular',
-    color: 'black',
+    fontFamily: "LXGWWenKaiMonoTC-Regular",
+    color: "black",
   },
   emptyText: {
     fontSize: 20,
-    fontFamily: 'LXGWWenKaiMonoTC-Bold',
-    color: 'gray',
+    fontFamily: "LXGWWenKaiMonoTC-Bold",
+    color: "gray",
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 16,
-    fontFamily: 'LXGWWenKaiMonoTC-Regular',
-    color: 'gray',
+    fontFamily: "LXGWWenKaiMonoTC-Regular",
+    color: "gray",
     marginTop: 8,
   },
   gridContainer: {
@@ -189,9 +189,9 @@ const styles = StyleSheet.create({
   imageContainer: {
     margin: 5,
     borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-    shadowColor: '#000',
+    overflow: "hidden",
+    backgroundColor: "transparent",
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -206,9 +206,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalCloseButton: {
     position: 'absolute',
@@ -222,26 +222,26 @@ const styles = StyleSheet.create({
     height: width - 40,
   },
   modalButtonContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 60,
     left: 20,
     right: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   setBackgroundButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: 'white',
+    borderColor: "white",
   },
   setBackgroundButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontFamily: 'LXGWWenKaiMonoTC-Regular',
+    fontFamily: "LXGWWenKaiMonoTC-Regular",
     marginLeft: 8,
   },
 }); 

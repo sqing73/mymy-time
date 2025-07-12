@@ -7,10 +7,10 @@ interface ImageSource {
 
 interface TimerState {
   isTimerRunning: boolean;
-  selectedValue: number;
+  countDown: number;
   backgroundImage: ImageSource;
   setIsTimerRunning: (running: boolean) => void;
-  setSelectedValue: (value: number) => void;
+  setCountDown: (value: number) => void;
   setBackgroundImage: (image: ImageSource) => void;
 }
 
@@ -18,9 +18,9 @@ const defaultBackgroundImage: ImageSource = { uri: FileSystem.documentDirectory 
 
 export const useTimerStore = create<TimerState>((set) => ({
   isTimerRunning: false,
-  selectedValue: 60, // default value
+  countDown: 3600, // default value
   backgroundImage: defaultBackgroundImage, // default background
   setIsTimerRunning: (running: boolean) => set({ isTimerRunning: running }),
-  setSelectedValue: (value: number) => set({ selectedValue: value }),
+  setCountDown: (value: number) => set({ countDown: value }),
   setBackgroundImage: (image: ImageSource) => set({ backgroundImage: image }),
 })); 

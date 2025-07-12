@@ -10,20 +10,16 @@ import {
   View,
   TouchableWithoutFeedback,
   Dimensions,
+  AppState,
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
 import { Image } from "expo-image";
 import { useImageGeneration, useActivityExtraction } from "@/hooks/useApi";
+import { useTimerAnimations } from "@/hooks/useTimerAnimations";
 import { useToast } from "@/components/ToastContext";
 import ImageGenerateConfirmationModal from "@/components/image-generate-confirmation-modal";
 import PressableButton from "@/components/PressableButton";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  useDerivedValue,
-  withTiming,
-  withRepeat,
-} from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import { getImageUriFromFileSystem, writeImageToFileSystem } from "@/lib/imageUtils";
 
 const { width: screenWidth } = Dimensions.get("screen");
@@ -33,9 +29,10 @@ const AnimatedFeather = Animated.createAnimatedComponent(Feather);
 export default function Index() {
   const { showToast } = useToast();
 
-  const { selectedValue, isTimerRunning, setIsTimerRunning, backgroundImage, setBackgroundImage } = useTimerStore();
-  const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
+  const { countDown, isTimerRunning, setIsTimerRunning, backgroundImage, setBackgroundImage, setCountDown } = useTimerStore();
   const timerRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const initialCountDownRef = useRef<number>(countDown);
   const [activityInput, setActivityInput] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
   const [isActivityInputValid, setIsActivityInputValid] = useState(false);
@@ -48,42 +45,51 @@ export default function Index() {
   const { mutateAsync: extractActivity, isPending: isExtractingActivity } = useActivityExtraction();
   const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
 
-  const animatedImageStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(isGeneratingImage ? 0.5 : 1, { duration: 1000 }),
-  }));
-  const loadingIconRotate = useSharedValue(0);
-  const settingsIconTranslateX = useSharedValue(0);
-  const galleryIconTranslateX = useDerivedValue(() => {
-    return -settingsIconTranslateX.value;
-  });
-  const playButtonTranslateY = useDerivedValue(() => {
-    // Play button moves downward with more translation (negative value = downward)
-    return -settingsIconTranslateX.value * 4; // 2x more movement than icons
-  });
-
-  const animatedLoadingIconStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${loadingIconRotate.value}deg` }],
-  }));
-
-  const animatedSettingsIconStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: settingsIconTranslateX.value }],
-  }));
-
-  const animatedGalleryIconStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: galleryIconTranslateX.value }],
-  }));
-
-  const animatedPlayButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: playButtonTranslateY.value }]
-  }));
+  const {
+    animatedImageStyle,
+    animatedLoadingIconStyle,
+    animatedSettingsIconStyle,
+    animatedGalleryIconStyle,
+    animatedPlayButtonStyle,
+    animatedBottomLineStyle,
+    slideOutAnimationStart,
+    slideInAnimationStart,
+    updateBottomLineWidth,
+    startLoadingAnimation,
+    stopLoadingAnimation,
+  } = useTimerAnimations(activityInput, isGeneratingImage);
 
   const shouldLockScreen = isTimerRunning || isExtractingActivity || isGeneratingImage;
 
-  useEffect(() => {
-    if (selectedValue > 0) {
-      setCountDown(selectedValue * 60);
+  const handleTimerEndCallback = useCallback((nextAppState?: string) => {
+    clearInterval(timerRef.current!);
+    setIsTimerRunning(false);
+    startTimeRef.current = null;
+    if (nextAppState === "active") {
+      setTimeout(() => {
+        slideInAnimationStart();
+      }, 1500);
+    } else {
+      slideInAnimationStart();
     }
-  }, [selectedValue]);
+  }, [slideInAnimationStart, setIsTimerRunning]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === "active" && isTimerRunning && startTimeRef.current) {
+        const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const remainingTime = Math.max(0, initialCountDownRef.current - elapsedSeconds);
+        setCountDown(remainingTime);
+
+        if (remainingTime === 0) {
+          handleTimerEndCallback(nextAppState);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription?.remove();
+  }, [isTimerRunning, setIsTimerRunning, slideInAnimationStart, handleTimerEndCallback, setCountDown]);
 
   const formatTime = useCallback((time: number | null) => {
     if (time === null) return "00:00";
@@ -102,6 +108,7 @@ export default function Index() {
   const pauseTimer = useCallback(() => {
     clearInterval(timerRef.current!);
     setIsTimerRunning(false);
+    startTimeRef.current = null;
   }, [setIsTimerRunning]);
 
   const handlePlayPress = useCallback(() => {
@@ -111,16 +118,21 @@ export default function Index() {
       return;
     }
 
+    setIsTimerRunning(true);
+    if (!startTimeRef.current) {
+      initialCountDownRef.current = countDown;
+    }
+    startTimeRef.current = Date.now();
     timerRef.current = setInterval(() => {
-      if (countDown > 0) {
-        setCountDown(prev => prev - 1);
-      } else if (countDown === 0) {
-        setCountDown(0);
+      const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+      const remainingTime = Math.max(0, initialCountDownRef.current - elapsedSeconds);
+      setCountDown(remainingTime);
+      if (remainingTime === 0) {
+        handleTimerEndCallback();
       }
     }, 1000);
-    setIsTimerRunning(true);
-    settingsIconTranslateX.value = withTiming(-100, { duration: 300 });
-  }, [activityInput, showToast, countDown, setIsTimerRunning, settingsIconTranslateX]);
+    slideOutAnimationStart();
+  }, [activityInput, setIsTimerRunning, slideOutAnimationStart, showToast, setCountDown, handleTimerEndCallback, countDown]);
 
   const handleActivityExtraction = useCallback(async () => {
     try {
@@ -132,6 +144,7 @@ export default function Index() {
           ellipsis.current = "";
         }
         setActivityInput(originalActivityInput.current + ellipsis.current);
+        updateBottomLineWidth();
       }, 1000);
 
       const data = await extractActivity({ prompt: activityInput });
@@ -153,7 +166,7 @@ export default function Index() {
       originalActivityInput.current = "";
       ellipsisTimerRef.current = null;
     }
-  }, [activityInput, extractActivity, setBackgroundImage, showToast]);
+  }, [activityInput, extractActivity, setBackgroundImage, showToast, updateBottomLineWidth, setCountDown]);
 
   const handleImageGenerationOpen = useCallback(async () => {
     if (shouldLockScreen) {
@@ -187,7 +200,7 @@ export default function Index() {
   const handleImageGenerationConfirm = useCallback(async () => {
     try {
       setIsImageGenerateConfirmationModalVisible(false);
-      loadingIconRotate.value = withRepeat(withTiming(loadingIconRotate.value + 360, { duration: 1000 }), -1, false);
+      startLoadingAnimation();
       const imageBase64 = await generateImage({ prompt: activityInput });
       const uri = await writeImageToFileSystem(imageBase64, activityInput);
       setBackgroundImage({ uri });
@@ -198,17 +211,17 @@ export default function Index() {
       }
       showToast("Failed to generate image!");
     } finally {
-      loadingIconRotate.value = 0;
+      stopLoadingAnimation();
     }
-  }, [loadingIconRotate, generateImage, activityInput, setBackgroundImage, showToast]);
+  }, [startLoadingAnimation, stopLoadingAnimation, generateImage, activityInput, setBackgroundImage, showToast]);
 
   const handleScreenLongPress = useCallback(() => {
     if (isTimerRunning) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      settingsIconTranslateX.value = withTiming(0, { duration: 300 });
       pauseTimer();
     }
-  }, [isTimerRunning, settingsIconTranslateX, pauseTimer]);
+    slideInAnimationStart();
+  }, [isTimerRunning, pauseTimer, slideInAnimationStart]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} onLongPress={handleScreenLongPress}>
@@ -249,7 +262,7 @@ export default function Index() {
             editable={!shouldLockScreen}
             maxLength={32}
           />
-          <View style={[styles.bottomLine, { width: Math.max(screenWidth * 0.6, activityInput.length * 10) }]} />
+          <Animated.View style={[styles.bottomLine, animatedBottomLineStyle]} />
         </View>
 
         <View style={styles.imageContainer}>

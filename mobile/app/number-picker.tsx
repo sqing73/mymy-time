@@ -5,7 +5,6 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Dimensions, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { Pressable } from "react-native-gesture-handler";
-import { PressableEvent } from "react-native-gesture-handler/lib/typescript/components/Pressable/PressableProps";
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -23,6 +22,7 @@ const snapSegment = segmentWidth + segmentSpacing;
 const spacerWidth = (width - segmentWidth) / 2;
 const indicatorWidth = 140;
 const indicatorHeight = 80;
+const DEFAULT_VALUE = 15;
 
 const Ruler = ({ items }: { items: number[] }) => {
   const rulerWidth = spacerWidth * 2 + items.length * segmentWidth + (items.length - 1) * segmentSpacing;
@@ -51,10 +51,10 @@ const Ruler = ({ items }: { items: number[] }) => {
 };
 
 export default function NumberPickerScreen() {
-  const { setSelectedValue } = useTimerStore();
-  const items = Array.from({ length: 106 }, (_, i) => i + 15); // 15 ~ 120
+  const { setCountDown } = useTimerStore();
+  const items = Array.from({ length: 120 }, (_, i) => i + 1); // 1 ~ 120
 
-  const [indicatorX, setIndicatorX] = useState(15);
+  const [indicatorX, setIndicatorX] = useState(DEFAULT_VALUE);
   const [lastHapticIndex, setLastHapticIndex] = useState(-1);
   const rotation = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -98,9 +98,9 @@ export default function NumberPickerScreen() {
     runOnJS(handleIndicatorX)(boundedValue);
   });
 
-  const handleDoneClicked = (e: PressableEvent) => {
-    setSelectedValue(indicatorX);
+  const handleDoneClicked = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCountDown(indicatorX * 60);
     router.back();
   };
 
@@ -134,6 +134,7 @@ export default function NumberPickerScreen() {
         snapToInterval={snapSegment}
         scrollEventThrottle={16}
         onScroll={handleScroll}
+        contentOffset={{ x: (DEFAULT_VALUE - 1) * snapSegment, y: 0 }}
       >
         <Ruler items={items} />
       </Animated.ScrollView>
