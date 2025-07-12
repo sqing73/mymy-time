@@ -4,17 +4,16 @@ import { Asset } from "expo-asset";
 export const clearImagesDirectory = async () => {
   try {
     const imagesDir = FileSystem.documentDirectory + 'images/';
-    
+
     // Check if directory exists
     const dirInfo = await FileSystem.getInfoAsync(imagesDir);
     if (!dirInfo.exists) {
-      console.log('Images directory does not exist, nothing to clear');
       return true;
     }
 
     // Read all files in the directory
     const files = await FileSystem.readDirectoryAsync(imagesDir);
-    
+
     // Delete all files
     for (const file of files) {
       const fileUri = imagesDir + file;
@@ -23,42 +22,49 @@ export const clearImagesDirectory = async () => {
 
     // Remove the directory itself
     await FileSystem.deleteAsync(imagesDir);
-    
+
     return true;
   } catch (error) {
-    console.error('Error clearing images directory:', error);
+    console.error("Error clearing images directory:", error);
     return false;
   }
 };
 
 export const getImagesFromFileSystem = async (): Promise<{ uri: string; name: string }[]> => {
-  try {
-    const imagesDir = FileSystem.documentDirectory + 'images/';
-    
-    // Check if images directory exists
-    const dirInfo = await FileSystem.getInfoAsync(imagesDir);
-    if (!dirInfo.exists) {
-      return [];
-    }
+  const imagesDir = FileSystem.documentDirectory + "images/";
 
-    // Read all files in the images directory
-    const files = await FileSystem.readDirectoryAsync(imagesDir);
-    
-    // Filter for image files and create gallery items
-    const imageFiles = files.filter(file => 
-      file.endsWith('.png') || 
-      file.endsWith('.jpg') || 
-      file.endsWith('.jpeg')
-    );
-
-    return imageFiles.map(file => ({
-      uri: `file://${imagesDir}${file}`,
-      name: file
-    }));
-  } catch (error) {
-    console.error('Error loading images from file system:', error);
+  // Check if images directory exists
+  const dirInfo = await FileSystem.getInfoAsync(imagesDir);
+  if (!dirInfo.exists) {
     return [];
   }
+
+  const files = await FileSystem.readDirectoryAsync(imagesDir);
+
+  // Filter for image files and create gallery items
+  const imageFiles = files.filter(file =>
+    file.endsWith(".png") ||
+    file.endsWith(".jpg") ||
+    file.endsWith(".jpeg")
+  ).sort((a, b) => {
+    // Extract timestamp from filename (format: name-timestamp.png)
+    const aMatch = a.match(/-(\d+)\.(png|jpg|jpeg)$/);
+    const bMatch = b.match(/-(\d+)\.(png|jpg|jpeg)$/);
+
+    if (!aMatch || !bMatch) return 0;
+
+    const aTimestamp = parseInt(aMatch[1]);
+    const bTimestamp = parseInt(bMatch[1]);
+
+    // Sort by newest first (descending order)
+    return bTimestamp - aTimestamp;
+  });
+  console.log(imageFiles);
+
+  return imageFiles.map(file => ({
+    uri: `file://${imagesDir}${file}`,
+    name: file,
+  }));
 };
 
 export const storePresetImages = async (presetImages: string[]) => {
@@ -87,7 +93,7 @@ export const storePresetImages = async (presetImages: string[]) => {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      const imageUri = FileSystem.documentDirectory + `images/${imageName}.png`;
+      const imageUri = FileSystem.documentDirectory + `images/${imageName}-${Date.now()}.png`;
       await FileSystem.writeAsStringAsync(imageUri, base64, {
         encoding: FileSystem.EncodingType.Base64,
       });

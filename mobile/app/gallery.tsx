@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { useState, useEffect } from "react";
 import { getImagesFromFileSystem } from "@/lib/imageUtils";
 import { useTimerStore } from "@/stores/timerStore";
+import { useToast } from "@/components/ToastContext";
 
 const { width } = Dimensions.get("window");
 const numColumns = 2;
@@ -20,22 +21,24 @@ export default function GalleryScreen() {
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { setBackgroundImage } = useTimerStore();
+  const { showToast } = useToast();
 
   useEffect(() => {
-    loadImages();
-  }, []);
+    const loadImages = async () => {
+      try {
+        // Load images from file system
+        const galleryImages = await getImagesFromFileSystem();
+        setImages(galleryImages);
+      } catch (error) {
+        console.error(error);
+        showToast("Error loading images!");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const loadImages = async () => {
-    try {
-      // Load images from file system
-      const galleryImages = await getImagesFromFileSystem();
-      setImages(galleryImages);
-    } catch (error) {
-      console.error("Error loading images:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    loadImages();
+  }, [showToast]);
 
   const handleClose = () => {
     router.back();
@@ -126,7 +129,6 @@ export default function GalleryScreen() {
               <View style={styles.modalButtonContainer}>
                 <Pressable style={styles.setBackgroundButton} onPress={handleSetAsBackground}>
                   <Feather name="home" size={20} color="white" />
-                  <Text style={styles.setBackgroundButtonText}>Set as Background</Text>
                 </Pressable>
               </View>
             </>
