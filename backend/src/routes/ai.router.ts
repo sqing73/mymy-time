@@ -1,15 +1,13 @@
 import express from "express";
 import { 
-    handleTaskExtractionRequest, 
-    handleTaskImageRequest, 
-    handleTaskImageMappingRequest 
+    handleActivityExtractionRequest, 
+    handleActivityImageGenerationRequest, 
 } from "@/controllers/ai.controller";
 import { validatePrompt } from "@/middlewares/validation.middleware";
 
 const router = express.Router();
 
-router.post("/task-extraction", validatePrompt, handleTaskExtractionRequest);
-router.post("/task-image-generation", validatePrompt, handleTaskImageRequest);
-router.post("/task-image-mapping", validatePrompt, handleTaskImageMappingRequest);
+router.post("/activity-extraction", validatePrompt, handleActivityExtractionRequest);
+router.post("/activity-image-generation", validatePrompt, handleActivityImageGenerationRequest);
 
 export default router; 

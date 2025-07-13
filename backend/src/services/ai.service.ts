@@ -7,34 +7,24 @@ const inputImageBase64 = fs.readFileSync("images/input.jpg", "base64");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const TaskTimeExtraction = z.object({
-  task: z.string(),
+const ActivityExtraction = z.object({
+  activity: z.string(),
   time: z.number(),
   image: z.string(),
 });
 
-interface TaskTimeExtractionType {
-  task?: string;
+interface ActivityExtractionResponseType {
+  activity?: string;
   time?: number;
   image?: string;
 }
 
-const Images = [
-  "reading-books",
-  "watching-tv",
-  "playing-video-games",
-  "listening-to-music",
-  "studying",
-  "working-out",
-  "doing-housework",
-  "cooking",
-  "eating",
-  "sleeping",
-  "taking-shower",
-  "meditating",
-];
+interface ActivityExtractionRequestType {
+  prompt: string;
+  images: string[];
+}
 
-export async function getTaskExtraction(prompt: string): Promise<TaskTimeExtractionType | null> {
+export async function getActivityExtraction(request: ActivityExtractionRequestType): Promise<ActivityExtractionResponseType | null> {
   const response = await openai.responses.parse({
     model: "gpt-4.1-mini",
     input: [
@@ -42,63 +32,58 @@ export async function getTaskExtraction(prompt: string): Promise<TaskTimeExtract
         role: "system",
         content: `
         # Identity
-        You are an expert at structured data extraction and image selection. You will be given unstructured text and you will need to extract the task and the time it will take to complete the task. The time should be in minutes. You will also need to select an image that best represents the task.
+        You are an expert at structured data extraction and image selection. You will be given unstructured text and you will need to extract the activity and the time it will take to complete the activity. The time should be in minutes. You will also need to select an image that best represents the activity.
 
         # Instructions
-        - Extract the task and the time it will take to complete the task.
-        - The extracted task should converted to present tense.
+        - If the prompt is not relevant to an activity or task, return empty for all fields.
+        - Extract the activity and the time it will take to complete the activity.
+        - The extracted activity should converted to present tense.
         - The time should be in minutes.
-        - Select an image that best represents the task.
-        - The image must be one of the following: ${Images.join(", ")}.
+        - Select an image that best represents the activity.
+        - The image must be one of the following: ${request.images.join(", ")}.
+        - If time is not provided, take a guess at the time it will take to complete the activity.
 
         # Example
         <user_query>
           reading books for 2 hours
         </user_query>
-        <task_extraction>
+        <activity_extraction>
           {
-            "task": "read books",
+            "activity": "read books",
             "time": 120,
             "image": "reading-books"
           }
-        </task_extraction>
+        </activity_extraction>
+
+        <user_query>
+          run
+        </user_query>
+        <activity_extraction>
+          {
+            "activity": "run",
+            "time": 30,
+            "image": "working-out"
+          }
         `
       },
       {
         role: "user",
-        content: prompt
+        content: request.prompt
       }
     ],
-    text: { format: zodTextFormat(TaskTimeExtraction, "TaskTimeExtraction") },
+    text: { format: zodTextFormat(ActivityExtraction, "ActivityExtraction") },
   });
-  const result: TaskTimeExtractionType = response.output_parsed || {};
+  const result: ActivityExtractionResponseType = response.output_parsed || {};
   const image = result.image || "";
-  const verifiedImage = Images.includes(image) ? image : "";
-  if (!result.task || !result.time || !verifiedImage) {
+  const verifiedImage = request.images.includes(image) ? image : "";
+  if (!result.activity || !result.time || !verifiedImage) {
     return null;
   }
   return {
-    task: result.task || "",
+    activity: result.activity || "",
     time: result.time || 0,
     image: verifiedImage,
   };
-}
-
-export async function getTaskImageMapping(prompt: string): Promise<string> {
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [
-      {
-        role: "system",
-        content: "You are an expert at image selection. You will be given a task and you will need to map the task to an image. The image should be one of the following: " + Images.join(", ") + ". Please only return the image name if you have high confidence in the selection. If you are not confident in the selection, return an empty string."
-      },
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-  });
-  return Images.includes(response.output_text) ? response.output_text : "";
 }
 
 export async function getTaskImage(prompt: string): Promise<string> {

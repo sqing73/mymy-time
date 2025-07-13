@@ -1,28 +1,29 @@
 import { useMutation } from "@tanstack/react-query";
 import { apiClient, apiEndpoints } from "../lib/api";
 import { useToast } from "../components/ToastContext";
-import { LocalTaskEnum } from "@/app/index";
 
-export interface TaskExtractionRequest {
+export interface ActivityExtractionRequest {
   prompt: string;
+  images: string[];
 }
 
-export interface TaskExtractionResponse {
-  task: string;
+export interface ActivityExtractionResponse {
+  activity: string;
   time: number;
-  image: LocalTaskEnum;
+  image: string;
 }
 
 export interface ImageGenerationRequest {
   prompt: string;
+  images: string[];
 }
 
-export const useTaskExtraction = () => {
+export const useActivityExtraction = () => {
   const { showToast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: TaskExtractionRequest): Promise<TaskExtractionResponse> => {
-      const response = await apiClient.post(apiEndpoints.aiTaskExtraction, data);
+    mutationFn: async (data: ActivityExtractionRequest): Promise<ActivityExtractionResponse> => {
+      const response = await apiClient.post(apiEndpoints.aiActivityExtraction, data);
       return response.data;
     },
     onError: (error: any) => {

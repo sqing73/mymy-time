@@ -3,6 +3,7 @@ import { Text, View, Modal, StyleSheet, Pressable } from "react-native";
 import PressableButton from "@/components/PressableButton";
 import * as Haptics from "expo-haptics";
 import { useCallback } from "react";
+import { Image } from "expo-image";
 
 type ImageGenerateConfirmationModalProps = {
   visible: boolean;
@@ -36,13 +37,12 @@ const ImageGenerateConfirmationModal = ({ visible, onClose, onConfirm }: ImageGe
             <Text
               style={styles.modalText}
             >
-              Want to generate an image for your task?
+              Want to generate an image for your activity?
             </Text>
-            <Pressable onPress={handleConfirmPress} onLongPress={handleConfirmPress}>
-              <View style={styles.confirmButton}>
-                <Text style={styles.modalText}>Confirm</Text>
-              </View>
-            </Pressable>
+            <PressableButton onPress={handleConfirmPress} style={styles.confirmButton}>
+              <Text style={styles.modalText}>Yes, please! - </Text>
+              <Image source={require("@/assets/images/coin.png")} style={styles.coinImage} />
+            </PressableButton>
           </View>
         </Pressable>
       </Pressable>
@@ -88,8 +88,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   confirmButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 10,
     borderRadius: 10,
     marginTop: 10,
+  },
+  coinImage: {
+    width: 30,
+    height: 30,
   },
 });

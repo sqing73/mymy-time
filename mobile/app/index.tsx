@@ -1,4 +1,4 @@
-import { useNumberPickerStore } from "@/stores/numberPickerStore";
+import { useTimerStore } from "@/stores/timerStore";
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -9,82 +9,89 @@ import {
   Text,
   View,
   TouchableWithoutFeedback,
+  Dimensions,
+  AppState,
 } from "react-native";
 import { Pressable, TextInput } from "react-native-gesture-handler";
 import { Image } from "expo-image";
-import { useImageGeneration, useTaskExtraction } from "@/hooks/useApi";
+import { useImageGeneration, useActivityExtraction } from "@/hooks/useApi";
+import { useTimerAnimations } from "@/hooks/useTimerAnimations";
 import { useToast } from "@/components/ToastContext";
-import ImageGenerateConfirmationModal from "./image-generate-confirmation-modal";
+import ImageGenerateConfirmationModal from "@/components/image-generate-confirmation-modal";
 import PressableButton from "@/components/PressableButton";
-import * as FileSystem from "expo-file-system";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming, withRepeat } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
+import { writeImageToFileSystem } from "@/lib/imageUtils";
+import { useGalleryStore } from "@/stores/galleryStore";
 
-export enum LocalTaskEnum {
-  readingBooks = "reading-books",
-  watchingTV = "watching-tv",
-  playingVideoGames = "playing-video-games",
-  listeningToMusic = "listening-to-music",
-  studying = "studying",
-  workingOut = "working-out",
-  eating = "eating",
-  sleeping = "sleeping",
-  doingHousework = "doing-housework",
-  cooking = "cooking",
-  meditating = "meditating",
-  takingShower = "taking-shower",
-  yawning = "yawning",
-};
-
-const backgroundImageNameMap = {
-  [LocalTaskEnum.readingBooks]: require("@/assets/images/reading-books.png"),
-  [LocalTaskEnum.watchingTV]: require("@/assets/images/watching-tv.png"),
-  [LocalTaskEnum.playingVideoGames]: require("@/assets/images/playing-video-games.png"),
-  [LocalTaskEnum.listeningToMusic]: require("@/assets/images/listening-to-music.png"),
-  [LocalTaskEnum.studying]: require("@/assets/images/studying.png"),
-  [LocalTaskEnum.workingOut]: require("@/assets/images/working-out.png"),
-  [LocalTaskEnum.eating]: require("@/assets/images/eating.png"),
-  [LocalTaskEnum.sleeping]: require("@/assets/images/sleeping.png"),
-  [LocalTaskEnum.doingHousework]: require("@/assets/images/doing-housework.png"),
-  [LocalTaskEnum.cooking]: require("@/assets/images/cooking.png"),
-  [LocalTaskEnum.meditating]: require("@/assets/images/meditating.png"),
-  [LocalTaskEnum.takingShower]: require("@/assets/images/taking-shower.png"),
-  [LocalTaskEnum.yawning]: require("@/assets/images/yawning.png"), // default value, will not be returned by the API
-};
-
-interface ImageSource {
-  uri: string;
-}
+const { width: screenWidth } = Dimensions.get("screen");
 
 const AnimatedFeather = Animated.createAnimatedComponent(Feather);
 
 export default function Index() {
-  const { selectedValue } = useNumberPickerStore();
-  const [countDown, setCountDown] = useState<number>(selectedValue * 60); // in seconds
-  const timerRef = useRef<number | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [taskInput, setTaskInput] = useState<string>("");
-  const [isFocused, setIsFocused] = useState(false);
-  const { mutateAsync: extractTask, isPending: isExtractingTask } = useTaskExtraction();
-  const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
-  const [image, setImage] = useState<LocalTaskEnum | ImageSource>(LocalTaskEnum.yawning);
-  const ellipsis = useRef<string>("");
-  const originalTaskInput = useRef<string>("");
-  const ellipsisTimerRef = useRef<number | null>(null);
   const { showToast } = useToast();
+
+  const { countDown, isTimerRunning, setIsTimerRunning, setCountDown } = useTimerStore();
+  const { galleryImages, backgroundImage, setBackgroundImage, addGalleryImage } = useGalleryStore();
+  const timerRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const initialCountDownRef = useRef<number>(countDown);
+  const [activityInput, setActivityInput] = useState<string>("");
+  const [isFocused, setIsFocused] = useState(false);
+  const [isActivityInputValid, setIsActivityInputValid] = useState(false);
   const [isImageGenerateConfirmationModalVisible, setIsImageGenerateConfirmationModalVisible] = useState(false);
-  const animatedImageStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(isGeneratingImage ? 0.5 : 1, { duration: 1000 }),
-  }));
-  const rotate = useSharedValue(0);
-  const animatedLoadingIconStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotate.value}deg` }],
-  }));
+
+  const ellipsis = useRef<string>("");
+  const originalActivityInput = useRef<string>("");
+  const ellipsisTimerRef = useRef<number | null>(null);
+
+  const { mutateAsync: extractActivity, isPending: isExtractingActivity } = useActivityExtraction();
+  const { mutateAsync: generateImage, isPending: isGeneratingImage } = useImageGeneration();
+
+  const {
+    animatedImageStyle,
+    animatedLoadingIconStyle,
+    animatedSettingsIconStyle,
+    animatedGalleryIconStyle,
+    animatedPlayButtonStyle,
+    animatedBottomLineStyle,
+    slideOutAnimationStart,
+    slideInAnimationStart,
+    updateBottomLineWidth,
+    startLoadingAnimation,
+    stopLoadingAnimation,
+  } = useTimerAnimations(activityInput, isGeneratingImage);
+
+  const shouldLockScreen = isTimerRunning || isExtractingActivity || isGeneratingImage;
+
+  const handleTimerEndCallback = useCallback((nextAppState?: string) => {
+    clearInterval(timerRef.current!);
+    setIsTimerRunning(false);
+    startTimeRef.current = null;
+    if (nextAppState === "active") {
+      setTimeout(() => {
+        slideInAnimationStart();
+      }, 1500);
+    } else {
+      slideInAnimationStart();
+    }
+  }, [slideInAnimationStart, setIsTimerRunning]);
 
   useEffect(() => {
-    if (selectedValue > 0) {
-      setCountDown(selectedValue * 60);
-    }
-  }, [selectedValue]);
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === "active" && isTimerRunning && startTimeRef.current) {
+        const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const remainingTime = Math.max(0, initialCountDownRef.current - elapsedSeconds);
+        setCountDown(remainingTime);
+
+        if (remainingTime === 0) {
+          handleTimerEndCallback(nextAppState);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription?.remove();
+  }, [isTimerRunning, setIsTimerRunning, slideInAnimationStart, handleTimerEndCallback, setCountDown]);
 
   const formatTime = useCallback((time: number | null) => {
     if (time === null) return "00:00";
@@ -94,93 +101,154 @@ export default function Index() {
   }, []);
 
   const handleOpenNumberPicker = () => {
+    if (shouldLockScreen) {
+      return;
+    }
     router.push("/number-picker");
   };
 
   const pauseTimer = useCallback(() => {
     clearInterval(timerRef.current!);
-    setIsPlaying(false);
-  }, []);
+    setIsTimerRunning(false);
+    startTimeRef.current = null;
+  }, [setIsTimerRunning]);
 
   const handlePlayPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    if (isPlaying) {
-      pauseTimer();
-      return;
-    }
-    if (!taskInput) {
-      showToast("Please enter a task first!");
+    if (!activityInput) {
+      showToast("Please enter an activity first!");
       return;
     }
 
+    setIsTimerRunning(true);
+    if (!startTimeRef.current) {
+      initialCountDownRef.current = countDown;
+    }
+    startTimeRef.current = Date.now();
     timerRef.current = setInterval(() => {
-      if (countDown > 0) {
-        setCountDown(prev => prev - 1);
-      } else if (countDown === 0) {
-        setCountDown(0);
+      const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+      const remainingTime = Math.max(0, initialCountDownRef.current - elapsedSeconds);
+      setCountDown(remainingTime);
+      if (remainingTime === 0) {
+        handleTimerEndCallback();
       }
     }, 1000);
-    setIsPlaying(true);
-  }, [pauseTimer, taskInput, showToast, isPlaying, countDown]);
+    slideOutAnimationStart();
+  }, [activityInput, setIsTimerRunning, slideOutAnimationStart, showToast, setCountDown, handleTimerEndCallback, countDown]);
 
-  const handleTaskExtraction = useCallback(async () => {
+  const handleActivityExtraction = useCallback(async () => {
     try {
       // start ellipsis animation
-      originalTaskInput.current = taskInput;
+      originalActivityInput.current = activityInput;
       ellipsisTimerRef.current = setInterval(() => {
         ellipsis.current = ellipsis.current + ".";
         if (ellipsis.current.length > 3) {
           ellipsis.current = "";
         }
-        setTaskInput(originalTaskInput.current + ellipsis.current);
+        setActivityInput(originalActivityInput.current + ellipsis.current);
+        updateBottomLineWidth();
       }, 1000);
 
-      const data = await extractTask({ prompt: taskInput });
-      setTaskInput(data.task);
+      const data = await extractActivity({ 
+        prompt: activityInput,
+        images: galleryImages.map(img => img.name)
+      });
+      setActivityInput(data.activity);
       setCountDown(data.time * 60);
-      setImage(data.image as LocalTaskEnum);
+      // gallery images are sorted by timestamp, so the latest image is the first one
+      const image = galleryImages.find(img => 
+        img.name.includes(data.image) || img.name.startsWith(data.image)
+      );
+      
+      if (image) {
+        setBackgroundImage({ uri: image.uri });
+      } else {
+        showToast("No image found for the activity!");
+      }
+      setIsActivityInputValid(true);
     } catch {
-      setTaskInput(originalTaskInput.current);
+      setActivityInput(originalActivityInput.current);
+      setIsActivityInputValid(false);
     } finally {
       clearInterval(ellipsisTimerRef.current!);
       ellipsis.current = "";
-      originalTaskInput.current = "";
+      originalActivityInput.current = "";
       ellipsisTimerRef.current = null;
     }
-  }, [extractTask, taskInput]);
+  }, [activityInput, extractActivity, setBackgroundImage, showToast, updateBottomLineWidth, setCountDown, galleryImages]);
 
   const handleImageGenerationOpen = useCallback(async () => {
+    if (shouldLockScreen) {
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    if (isExtractingTask) {
+    if (isExtractingActivity) {
       return;
     }
-    if (!taskInput) {
-      showToast("Please enter a task first!");
+    if (!activityInput) {
+      showToast("Please enter an activity first!");
       return;
     }
-    pauseTimer();
+    if (!isActivityInputValid) {
+      showToast("Please enter a valid activity first!");
+      return;
+    }
+    if (galleryImages.length === 0) {
+      showToast("Please add some images to the gallery first!");
+      return;
+    }
     setIsImageGenerateConfirmationModalVisible(true);
-  }, [pauseTimer, taskInput, showToast, isExtractingTask]);
+  }, [activityInput, isExtractingActivity, isActivityInputValid, shouldLockScreen, galleryImages, showToast]);
 
   const handleImageGenerationClose = useCallback(() => {
     setIsImageGenerateConfirmationModalVisible(false);
   }, []);
 
   const handleImageGenerationConfirm = useCallback(async () => {
-    setIsImageGenerateConfirmationModalVisible(false);
-    rotate.value = withRepeat(withTiming(rotate.value + 360, { duration: 1000 }), -1, false); 
-    const imageBase64 = await generateImage({ prompt: taskInput });
-    const uri = FileSystem.documentDirectory + `images/${taskInput}-${Date.now()}.png`;
-    await FileSystem.writeAsStringAsync(uri, imageBase64, { encoding: FileSystem.EncodingType.Base64 });
-    setImage({ uri });
-    rotate.value = 0;
-  }, [generateImage, taskInput, rotate]);
+    try {
+      setIsImageGenerateConfirmationModalVisible(false);
+      startLoadingAnimation();
+      const imageBase64 = await generateImage({ prompt: activityInput, images: galleryImages.map(img => img.name) });
+      const image = await writeImageToFileSystem(imageBase64, activityInput);
+      setBackgroundImage({ uri: image.uri });
+      addGalleryImage(image);
+    } catch (error: unknown) {
+      if (error instanceof Error && (error.message.includes('ENOSPC') || error.message.toLowerCase().includes('quota'))) {
+        showToast("Your device is out of storage space. Please free up some space and try again.");
+        return;
+      }
+      showToast("Failed to generate image!");
+    } finally {
+      stopLoadingAnimation();
+    }
+  }, [startLoadingAnimation, stopLoadingAnimation, generateImage, activityInput, setBackgroundImage, showToast, galleryImages, addGalleryImage]);
+
+  const handleScreenLongPress = useCallback(() => {
+    if (isTimerRunning) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      pauseTimer();
+    }
+    slideInAnimationStart();
+  }, [isTimerRunning, pauseTimer, slideInAnimationStart]);
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} onLongPress={handleScreenLongPress}>
       <View
-        style={styles.background}
+        style={styles.container}
       >
+        <View style={styles.headerContainer}>
+          <Animated.View style={animatedSettingsIconStyle}>
+            <Pressable onPress={() => router.push("/settings")}>
+              <Feather name="settings" size={24} color="black" />
+            </Pressable>
+          </Animated.View>
+          <Animated.View style={animatedGalleryIconStyle}>
+            <Pressable onPress={() => router.push("/gallery")}>
+              <Feather name="image" size={24} color="black" />
+            </Pressable>
+          </Animated.View>
+        </View>
+
         <View style={styles.timerContainer}>
           <Pressable onPress={handleOpenNumberPicker}>
             <Text style={styles.timerText}>
@@ -189,18 +257,20 @@ export default function Index() {
           </Pressable>
         </View>
 
-        <View style={styles.taskInputContainer}>
+        <View style={styles.activityInputContainer}>
           <TextInput
-            placeholder={isFocused ? "" : "reading books for an hour..."}
-            value={taskInput}
-            onChangeText={(text) => setTaskInput(text)}
-            style={styles.taskInput}
+            placeholder={isFocused ? "" : "read for an hour"}
+            value={activityInput}
+            onChangeText={(text) => setActivityInput(text)}
+            style={styles.activityInput}
             placeholderTextColor="gray"
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            onSubmitEditing={handleTaskExtraction}
-            editable={!isExtractingTask && !isGeneratingImage}
+            onSubmitEditing={handleActivityExtraction}
+            editable={!shouldLockScreen}
+            maxLength={32}
           />
+          <Animated.View style={[styles.bottomLine, animatedBottomLineStyle]} />
         </View>
 
         <View style={styles.imageContainer}>
@@ -213,10 +283,11 @@ export default function Index() {
           <Animated.View style={[animatedImageStyle]}>
             <Pressable onLongPress={handleImageGenerationOpen}>
               <Image
-                source={Object.values(LocalTaskEnum).includes(image as LocalTaskEnum) ? backgroundImageNameMap[image as LocalTaskEnum] : image}
-                style={[
-                  styles.backgroundImage,
-                ]}
+                source={backgroundImage}
+                style={{
+                  width: screenWidth * 0.7,
+                  height: screenWidth * 0.7 * 1.5,
+                }}
                 contentFit="contain"
                 placeholder={"loading..."}
               />
@@ -224,11 +295,10 @@ export default function Index() {
           </Animated.View>
         </View>
 
-        <PressableButton onPress={handlePlayPress} onLongPress={handlePlayPress}>
-          {isPlaying ?
-            <Feather name="pause-circle" size={60} color="black" /> :
-            <Feather name="play-circle" size={60} color="black" />
-          }
+        <PressableButton onPress={handlePlayPress} disabled={isTimerRunning}>
+          <Animated.View style={animatedPlayButtonStyle}>
+            <Feather name={"play-circle"} size={60} color="black" />
+          </Animated.View>
         </PressableButton>
 
         <ImageGenerateConfirmationModal
@@ -242,7 +312,7 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  background: {
+  container: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -250,8 +320,16 @@ const styles = StyleSheet.create({
     paddingTop: "30%",
     paddingBottom: "20%",
   },
+  headerContainer: {
+    position: "absolute",
+    top: 60,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
   timerContainer: {
-    flex: 1,
     alignItems: "center",
   },
   timerText: {
@@ -267,20 +345,20 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: "3%",
   },
-  backgroundImage: {
-    width: 300,
-    height: 450,
-  },
-  taskInputContainer: {
+  activityInputContainer: {
     marginTop: "8%",
+    marginBottom: "3%",
+    maxWidth: "80%",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  taskInput: {
+  activityInput: {
     width: "100%",
-    height: 20,
+    height: 28,
     fontSize: 20,
-    fontFamily: "LXGWWenKaiMonoTC-Regular",
+    fontFamily: "LXGWWenKaiMonoTC-Bold",
+    textAlign: "center",
   },
   loadingContainer: {
     position: "absolute",
@@ -295,5 +373,12 @@ const styles = StyleSheet.create({
     fontFamily: "LXGWWenKaiMonoTC-Regular",
     marginTop: 10,
     textAlign: "center",
+  },
+  bottomLine: {
+    marginTop: 10,
+    alignSelf: "center",
+    borderBottomWidth: 1,
+    borderRadius: 10,
+    borderColor: "gray",
   },
 });

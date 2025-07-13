@@ -39,6 +39,6 @@ apiClient.interceptors.response.use(
 );
 
 export const apiEndpoints = {
-  aiTaskExtraction: "/ai/task-extraction",
-  aiImageGeneration: "/ai/task-image-generation",
+  aiActivityExtraction: "/ai/activity-extraction",
+  aiImageGeneration: "/ai/activity-image-generation",
 } as const;
