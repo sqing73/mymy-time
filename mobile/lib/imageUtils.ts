@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system";
 import { Asset } from "expo-asset";
+import { GalleryImage } from "@/stores/galleryStore";
 
 export const clearImagesDirectory = async () => {
   try {
@@ -30,7 +31,7 @@ export const clearImagesDirectory = async () => {
   }
 };
 
-export const getImagesFromFileSystem = async (): Promise<{ uri: string; name: string }[]> => {
+export const getImagesFromFileSystem = async (): Promise<GalleryImage[]> => {
   const imagesDir = FileSystem.documentDirectory + "images/";
 
   // Check if images directory exists
@@ -46,25 +47,23 @@ export const getImagesFromFileSystem = async (): Promise<{ uri: string; name: st
     file.endsWith(".png") ||
     file.endsWith(".jpg") ||
     file.endsWith(".jpeg")
-  ).sort((a, b) => {
-    // Extract timestamp from filename (format: name-timestamp.png)
-    const aMatch = a.match(/-(\d+)\.(png|jpg|jpeg)$/);
-    const bMatch = b.match(/-(\d+)\.(png|jpg|jpeg)$/);
-
-    if (!aMatch || !bMatch) return 0;
-
-    const aTimestamp = parseInt(aMatch[1]);
-    const bTimestamp = parseInt(bMatch[1]);
-
-    // Sort by newest first (descending order)
-    return bTimestamp - aTimestamp;
+  ).map(file => {
+    const lastDashIndex = file.lastIndexOf('-');
+    const name = lastDashIndex !== -1 ? file.substring(0, lastDashIndex) : file.replace(/\.(png|jpg|jpeg)$/, '');
+    
+    const timeStampMatch = file.match(/-(\d+)\.(png|jpg|jpeg)$/);
+    const timestamp = timeStampMatch ? parseInt(timeStampMatch[1]) : 0;
+    
+    return {
+      uri: `${imagesDir}${file}`,
+      name,
+      timestamp,
+    };
+  }).sort((a, b) => {
+    return b.timestamp - a.timestamp;
   });
-  console.log(imageFiles);
 
-  return imageFiles.map(file => ({
-    uri: `file://${imagesDir}${file}`,
-    name: file,
-  }));
+  return imageFiles;
 };
 
 export const storePresetImages = async (presetImages: string[]) => {
@@ -83,7 +82,6 @@ export const storePresetImages = async (presetImages: string[]) => {
     "taking-shower": require("@/assets/images/taking-shower.png"),
     "yawning": require("@/assets/images/yawning.png"),
   };
-
   for (const imageName of presetImages) {
     if (imageMap[imageName]) {
       const asset = Asset.fromModule(imageMap[imageName]);
@@ -110,10 +108,11 @@ export const getImageUriFromFileSystem = async (imageName: string): Promise<stri
   return imageUri;
 };
 
-export const writeImageToFileSystem = async (imageBase64: string, imageName: string): Promise<string> => {
-  const imageUri = FileSystem.documentDirectory + `images/${imageName}.png`;
+export const writeImageToFileSystem = async (imageBase64: string, imageName: string): Promise<GalleryImage> => {
+  const timestamp = Date.now();
+  const imageUri = FileSystem.documentDirectory + `images/${imageName}-${timestamp}.png`;
   await FileSystem.writeAsStringAsync(imageUri, imageBase64, {
     encoding: FileSystem.EncodingType.Base64,
   });
-  return imageUri;
+  return {uri: imageUri, name: imageName, timestamp};
 };

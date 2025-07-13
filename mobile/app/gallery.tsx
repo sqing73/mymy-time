@@ -3,8 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { useState, useEffect } from "react";
-import { getImagesFromFileSystem } from "@/lib/imageUtils";
-import { useTimerStore } from "@/stores/timerStore";
+import { useGalleryStore } from "@/stores/galleryStore";
 import { useToast } from "@/components/ToastContext";
 
 const { width } = Dimensions.get("window");
@@ -17,18 +16,18 @@ interface GalleryImage {
 }
 
 export default function GalleryScreen() {
-  const [images, setImages] = useState<GalleryImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { setBackgroundImage } = useTimerStore();
+  const { setBackgroundImage } = useGalleryStore();
+  const { galleryImages, refreshGalleryImages } = useGalleryStore();
   const { showToast } = useToast();
 
   useEffect(() => {
     const loadImages = async () => {
       try {
-        // Load images from file system
-        const galleryImages = await getImagesFromFileSystem();
-        setImages(galleryImages);
+        if (galleryImages.length === 0) {
+          await refreshGalleryImages();
+        }
       } catch (error) {
         console.error(error);
         showToast("Error loading images!");
@@ -38,7 +37,7 @@ export default function GalleryScreen() {
     };
 
     loadImages();
-  }, [showToast]);
+  }, [galleryImages.length, refreshGalleryImages, showToast]);
 
   const handleClose = () => {
     router.back();
@@ -90,7 +89,7 @@ export default function GalleryScreen() {
         <View style={styles.centerContainer}>
           <Text style={styles.loadingText}>Loading images...</Text>
         </View>
-      ) : images.length === 0 ? (
+      ) : galleryImages.length === 0 ? (
         <View style={styles.centerContainer}>
           <Feather name="image" size={64} color="gray" />
           <Text style={styles.emptyText}>No images yet</Text>
@@ -98,7 +97,7 @@ export default function GalleryScreen() {
         </View>
       ) : (
         <FlatList
-          data={images}
+          data={galleryImages}
           renderItem={renderImage}
           keyExtractor={(item) => item.uri}
           numColumns={numColumns}

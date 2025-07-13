@@ -20,7 +20,8 @@ import { useToast } from "@/components/ToastContext";
 import ImageGenerateConfirmationModal from "@/components/image-generate-confirmation-modal";
 import PressableButton from "@/components/PressableButton";
 import Animated from "react-native-reanimated";
-import { getImageUriFromFileSystem, writeImageToFileSystem } from "@/lib/imageUtils";
+import { writeImageToFileSystem } from "@/lib/imageUtils";
+import { useGalleryStore } from "@/stores/galleryStore";
 
 const { width: screenWidth } = Dimensions.get("screen");
 
@@ -29,7 +30,8 @@ const AnimatedFeather = Animated.createAnimatedComponent(Feather);
 export default function Index() {
   const { showToast } = useToast();
 
-  const { countDown, isTimerRunning, setIsTimerRunning, backgroundImage, setBackgroundImage, setCountDown } = useTimerStore();
+  const { countDown, isTimerRunning, setIsTimerRunning, setCountDown } = useTimerStore();
+  const { galleryImages, backgroundImage, setBackgroundImage, addGalleryImage } = useGalleryStore();
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const initialCountDownRef = useRef<number>(countDown);
@@ -147,12 +149,19 @@ export default function Index() {
         updateBottomLineWidth();
       }, 1000);
 
-      const data = await extractActivity({ prompt: activityInput });
+      const data = await extractActivity({ 
+        prompt: activityInput,
+        images: galleryImages.map(img => img.name)
+      });
       setActivityInput(data.activity);
       setCountDown(data.time * 60);
-      const uri = await getImageUriFromFileSystem(data.image);
-      if (uri) {
-        setBackgroundImage({ uri });
+      // gallery images are sorted by timestamp, so the latest image is the first one
+      const image = galleryImages.find(img => 
+        img.name.includes(data.image) || img.name.startsWith(data.image)
+      );
+      
+      if (image) {
+        setBackgroundImage({ uri: image.uri });
       } else {
         showToast("No image found for the activity!");
       }
@@ -166,7 +175,7 @@ export default function Index() {
       originalActivityInput.current = "";
       ellipsisTimerRef.current = null;
     }
-  }, [activityInput, extractActivity, setBackgroundImage, showToast, updateBottomLineWidth, setCountDown]);
+  }, [activityInput, extractActivity, setBackgroundImage, showToast, updateBottomLineWidth, setCountDown, galleryImages]);
 
   const handleImageGenerationOpen = useCallback(async () => {
     if (shouldLockScreen) {
@@ -184,14 +193,12 @@ export default function Index() {
       showToast("Please enter a valid activity first!");
       return;
     }
+    if (galleryImages.length === 0) {
+      showToast("Please add some images to the gallery first!");
+      return;
+    }
     setIsImageGenerateConfirmationModalVisible(true);
-  }, [
-    activityInput,
-    showToast,
-    isExtractingActivity,
-    isActivityInputValid,
-    shouldLockScreen,
-  ]);
+  }, [activityInput, isExtractingActivity, isActivityInputValid, shouldLockScreen, galleryImages, showToast]);
 
   const handleImageGenerationClose = useCallback(() => {
     setIsImageGenerateConfirmationModalVisible(false);
@@ -201,9 +208,10 @@ export default function Index() {
     try {
       setIsImageGenerateConfirmationModalVisible(false);
       startLoadingAnimation();
-      const imageBase64 = await generateImage({ prompt: activityInput });
-      const uri = await writeImageToFileSystem(imageBase64, activityInput);
-      setBackgroundImage({ uri });
+      const imageBase64 = await generateImage({ prompt: activityInput, images: galleryImages.map(img => img.name) });
+      const image = await writeImageToFileSystem(imageBase64, activityInput);
+      setBackgroundImage({ uri: image.uri });
+      addGalleryImage(image);
     } catch (error: unknown) {
       if (error instanceof Error && (error.message.includes('ENOSPC') || error.message.toLowerCase().includes('quota'))) {
         showToast("Your device is out of storage space. Please free up some space and try again.");
@@ -213,7 +221,7 @@ export default function Index() {
     } finally {
       stopLoadingAnimation();
     }
-  }, [startLoadingAnimation, stopLoadingAnimation, generateImage, activityInput, setBackgroundImage, showToast]);
+  }, [startLoadingAnimation, stopLoadingAnimation, generateImage, activityInput, setBackgroundImage, showToast, galleryImages, addGalleryImage]);
 
   const handleScreenLongPress = useCallback(() => {
     if (isTimerRunning) {
@@ -347,7 +355,7 @@ const styles = StyleSheet.create({
   },
   activityInput: {
     width: "100%",
-    height: 20,
+    height: 28,
     fontSize: 20,
     fontFamily: "LXGWWenKaiMonoTC-Bold",
     textAlign: "center",

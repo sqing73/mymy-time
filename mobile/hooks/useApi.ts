@@ -1,21 +1,21 @@
 import { useMutation } from "@tanstack/react-query";
 import { apiClient, apiEndpoints } from "../lib/api";
 import { useToast } from "../components/ToastContext";
-import { LocalActivityEnum } from "@/app/index";
 
 export interface ActivityExtractionRequest {
   prompt: string;
+  images: string[];
 }
 
 export interface ActivityExtractionResponse {
   activity: string;
   time: number;
-  image: LocalActivityEnum;
-  imageUrl: string;
+  image: string;
 }
 
 export interface ImageGenerationRequest {
   prompt: string;
+  images: string[];
 }
 
 export const useActivityExtraction = () => {

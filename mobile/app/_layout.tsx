@@ -10,10 +10,12 @@ import { ToastProvider } from "@/components/ToastContext";
 import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { storePresetImages } from "@/lib/imageUtils";
+import { useGalleryStore } from "@/stores/galleryStore";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const { refreshGalleryImages, setBackgroundImage } = useGalleryStore();
   const [loaded] = useFonts({
     "LXGWWenKaiMonoTC-Regular": require("../assets/fonts/LXGWWenKaiMonoTC-Regular.ttf"),
     "LXGWWenKaiMonoTC-Bold": require("../assets/fonts/LXGWWenKaiMonoTC-Bold.ttf"),
@@ -34,17 +36,21 @@ export default function RootLayout() {
           await storePresetImages(presetImages);
         }
 
-        await AsyncStorage.removeItem("isFirstTime");
+        await refreshGalleryImages();
+        setBackgroundImage({ uri: FileSystem.documentDirectory + `images/reading-books.png` });
       } catch (error) {
-        console.log('Error in prepareApp:', error);
+        console.error("Error in prepareApp:", error);
       }
     };
 
-    prepareApp();
+    if (!loaded) {
+      prepareApp();
+    }
+
     if (loaded) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, refreshGalleryImages, setBackgroundImage]);
 
   if (!loaded) {
     return null;
